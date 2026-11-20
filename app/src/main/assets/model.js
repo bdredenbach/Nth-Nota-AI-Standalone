@@ -1,0 +1,87 @@
+'use strict';
+const NotaModel = (() => {
+ const id = prefix => prefix + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 11);
+ const newThread = (temporary = false) => ({id:id('thread'),title:'New chat',temporary,updated:Date.now(),draft:'',attachment:'',mode:'auto',turns:[]});
+ const esc = value => String(value == null ? '' : value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ function safeUrl(raw) {
+   try { const u = new URL(raw); return u.protocol === 'https:' && !u.username && !u.password && (!u.port || u.port === '443') ? u.href : ''; }
+   catch (_) {return '';}
+ }
+ function sources(list) {
+   const seen = new Set();
+   return (Array.isArray(list) ? list : []).filter(s => s && safeUrl(s.url) && !seen.has(s.url) && seen.add(s.url)).slice(0,20)
+    .map(s => ({title:String(s.title || new URL(s.url).hostname),url:safeUrl(s.url)}));
+ }
+ function context(turns) {
+   const messages=[]; let used=0;
+   for (let i=turns.length-1;i>=0 && messages.length<12;i--) {
+     const t=turns[i];
+     if(t.phone || t.status!=='ok' || t.unavailable || !t.reply) continue;
+     const q=t.question.slice(0,2000), a=t.reply.slice(0,6000);
+     if(used+q.length+a.length>9000) break;
+     messages.unshift({role:'user',content:q},{role:'assistant',content:a});
+     used+=q.length+a.length;
+   }
+   return messages;
+ }
+ function request(turn, prior) {
+   if(turn.attachment) {
+     return {route:'write',prompt:'Use the selected passage as reference material. Follow the user’s request about it.\n\nREQUEST\n'+turn.question+'\n\nSELECTED PASSAGE\n'+turn.attachment};
+   }
+   return {route:'chat',question:turn.question,mode:turn.mode,messages:context(prior)};
+ }
+ function tidy(s){ return String(s).replace(/\*\*(.*?)\*\*/g,'$1').replace(/__(.*?)__/g,'$1').replace(/^`(.+)`$/,'$1').trim(); }
+ function checklist(text){
+   const lines=text.split(/\r?\n/).filter(s=>s.trim());
+   const pattern=/^(\s*)(?:[-*+•]|\d+[.)])\s+(?:\[([ xX])\]\s*)?(.*)$/;
+   const items=[];
+   lines.forEach((line,i)=>{
+     const m=line.match(pattern);
+     if(!m) return;
+     const next=(lines[i+1] || '').match(pattern);
+     if(next && next[1].length>m[1].length && /(?:\*\*|:)\s*$/.test(m[3])) return;
+     if(tidy(m[3])) items.push({text:tidy(m[3]),done:(m[2] || '').toLowerCase()==='x'});
+   });
+   if(items.length) return items;
+   return lines.filter(l=>!/^#+\s/.test(l)).map(l=>({text:tidy(l),done:false})).filter(x=>x.text);
+ }
+ function forSpeech(text){
+   const clean=String(text).split('\n').filter(line=>!/^\s*\|?[\s:\-|]+\|\s*$/.test(line))
+    .map(line=>line.replace(/^\s*```[\w+-]*\s*$/,'').replace(/^\s*(?:#{1,6}|>|[-*•])\s+/,'')
+      .replace(/\[([^\]]+)\]\(https?:\/\/[^\s)]+\)/g,'$1').replace(/\*\*(.+?)\*\*|__(.+?)__/g,(_,a,b)=>a||b)
+      .replace(/`([^`]+)`/g,'$1').replace(/\s+\|\s+/g,', ')).join('\n').trim();
+   return clean || text;
+ }
+ function cardText(card) {
+   return card.type==='Checklist'?card.items.map(i=>'- ['+(i.done?'x':' ')+'] '+i.text).join('\n'):card.body;
+ }
+ const sourceText = list => list && list.length?'\n\nSources\n'+list.map(s=>'- '+s.title+' — '+s.url).join('\n'):'';
+ function transcript(thread) {
+   return '# '+thread.title+'\n\n'+thread.turns.map(t=>'## You\n'+t.question+(t.attachment?'\n\nAttached text\n'+t.attachment:'')+'\n\n## Nth Nota AI\n'+(t.reply||t.error||'No completed reply.')+sourceText(t.sources)).join('\n\n');
+ }
+ function inline(raw){
+   return String(raw).split(/(`[^`\n]+`)/g).map((part,i)=>i%2?'<code>'+esc(part.slice(1,-1))+'</code>':esc(part).replace(/\*\*([^*\n]+)\*\*/g,'<strong>$1</strong>').replace(/__([^_\n]+)__/g,'<strong>$1</strong>').replace(/\*([^*\n]+)\*/g,'<em>$1</em>')).join('');
+ }
+ function markdown(data){
+   const lines=String(data).replace(/\r/g,'').split('\n'), html=[];
+   for(let i=0;i<lines.length;){
+     const line=lines[i++]; if(!line.trim()) continue;
+     if(/^\s*```/.test(line)){
+       const code=[];while(i<lines.length&&!/^\s*```/.test(lines[i]))code.push(lines[i++]);i++;
+       html.push('<pre><code>'+esc(code.join('\n'))+'</code></pre>');continue;
+     }
+     if(line.includes('|') && i<lines.length && /^\s*\|?\s*:?-{3,}:?\s*\|/.test(lines[i])){
+       i++;const rows=[line];while(i<lines.length && lines[i].includes('|') && lines[i].trim())rows.push(lines[i++]);
+       const cells=row=>row.trim().replace(/^\||\|$/g,'').split('|');
+       html.push('<div class="table-scroll"><table>'+rows.map((row,n)=>'<tr>'+cells(row).map(v=>n?'<td>'+inline(v.trim())+'</td>':'<th>'+inline(v.trim())+'</th>').join('')+'</tr>').join('')+'</table></div>');continue;
+     }
+     let m=line.match(/^#{1,6}\s+(.+)/);if(m){html.push('<h3>'+inline(m[1])+'</h3>');continue;}
+     m=line.match(/^\s*(\d+[.)]|[-+*•])\s+(.*)/);if(m){html.push('<div class="bullet"><span>'+(/^\d/.test(m[1])?esc(m[1]):'•')+'</span><div>'+inline(m[2])+'</div></div>');continue;}
+     if(/^>\s?/.test(line)){html.push('<blockquote>'+inline(line.replace(/^>\s?/,''))+'</blockquote>');continue;}
+     html.push('<p>'+inline(line)+'</p>');
+   }
+   return html.join('');
+ }
+ return {id,newThread,esc,safeUrl,sources,context,request,tidy,checklist,cardText,sourceText,transcript,markdown,forSpeech};
+})();
+if(typeof module !== 'undefined')module.exports=NotaModel;

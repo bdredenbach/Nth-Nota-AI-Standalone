@@ -1,0 +1,21 @@
+pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+        exclusiveContent {
+            forRepository {
+                ivy {
+                    name = 'kokoroModel'
+                    url = uri('https://huggingface.co/litert-community/Kokoro-82M/resolve')
+                    patternLayout { artifact '[revision]/[artifact].[ext]' }
+                    metadataSources { artifact() }
+                }
+            }
+            filter { includeModule 'litert-community', 'kokoro_int8_fp16' }
+        }
+    }
+}
+rootProject.name = 'Nth Nota AI'
+include ':app'

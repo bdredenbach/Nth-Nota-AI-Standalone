@@ -1,0 +1,35 @@
+'use strict';
+// Only a direct user request can enter a device route. Attachments and model replies are never inspected.
+function phoneIntent(question, previous) {
+ const q=String(question).trim().replace(/[’‘]/g,"'").replace(/[?!.]+$/g,'').trim()
+  .replace(/^(?:(?:hey|hi)[, ]+(?:nth )?nota[, ]+|(?:nth )?nota[, ]+)/i,'')
+  .replace(/^(?:please |(?:can|could|would|will) you (?:please )?)/i,'').replace(/,? please$/i,'').trim();
+ if(/^(?:how much (?:battery|charge) (?:do i have|is) left|how much battery (?:do i have|is left)|is my phone charging)$/i.test(q))return {type:'battery'};
+ if(/^(?:what (?:phone|device) (?:am i using|do i have|is this)|what (?:android version|version of android) (?:am i (?:using|running)|is this|do i have)|show (?:my )?phone info)$/i.test(q))return {type:'device'};
+ if(/^(?:how much (?:free )?(?:storage|space) (?:do i have(?: left)?|is (?:free|left|available))(?: on my phone)?|show (?:my )?(?:free |available )?storage)$/i.test(q))return {type:'storage'};
+ if(/^(?:(?:tell|show|give) me |check )?(?:(?:what(?:'s| is)|how(?:'s| is)) )?(?:my |the |my phone(?:'s)? |this phone(?:'s)? )?(?:battery(?: level| percentage| percent| status)?)(?: (?:right now|at|on my phone))?$/i.test(q))return {type:'battery'};
+ if(/^(?:(?:show(?: me)?|tell me|list) |what (?:were|are) |which )?(?:my |the )?(?:recent(?:ly (?:opened|used))? apps|apps (?:i(?:'ve| have)? (?:recently |last )?(?:opened|used)(?: recently)?|used recently))(?: on (?:my|this) phone)?$/i.test(q) || /^(?:(?:which|what) (?:apps? (?:did|have) i (?:use|open)(?:d)? (?:recently|last)|(?:was )?the last app i (?:opened|used)))$/i.test(q))return {type:'recent'};
+ let match=q.match(/^(?:open|launch|start|take me to) (.{1,70})$/i);
+ if(match&&!/[;\n]/.test(match[1])&&!/\b(?:and then|and tell|and open|then|https?)\b/i.test(match[1])){
+  const name=match[1].replace(/^(?:the |my )/i,'').replace(/ app$/i,'').trim();
+  const key=name.toLowerCase().replace(/[- ]/g,'');
+  const settings={settings:'phone',phonesettings:'phone',androidsettings:'phone',wifisettings:'wifi',wifi:'wifi',bluetoothsettings:'bluetooth',bluetooth:'bluetooth',locationsettings:'location',displaysettings:'display',batterysettings:'battery',soundsettings:'sound',notificationsettings:'notifications'};
+  return settings[key]?{type:'setting',value:settings[key]}:{type:'app',value:name};
+ }
+ if(previous&&previous.wx && /^(?:(?:and|how about|what about) )?(tomorrow|today|right now)(?: then)?$/i.test(q))
+  return {type:'weather',value:previous.wx.value||'',period:/tomorrow/i.test(q)?'tomorrow':/today/i.test(q)?'today':'now'};
+ let w=q.replace(/^(?:(?:tell|show|give) me |check |look up )/i,'').replace(/^(?:what(?:'s| is)|how(?:'s| is)) /i,'')
+  .replace(/^(?:today's|tomorrow's) (?=(?:weather|forecast))/i,'').replace(/^(?:the |my |local |current )+/i,'');
+ match=w.match(/^(weather(?: forecast)?|forecast|temperature)(?: like)?(?:\s+(.*))?$/i);
+ if(/\b(?:yesterday|this week|next week|weekend|next month|monday|tuesday|wednesday|thursday|friday|saturday|sunday|tonight|hourly|history|historical|last year)\b/i.test(q))return null;
+ if(!match && !/^(?:is it (?:raining|snowing|cold|hot)|will it (?:rain|snow)|do i need (?:a jacket|an umbrella))(?: (?:here|today|tomorrow|right now|outside))*$/i.test(q))return null;
+ let tail=match?(match[2]||''):'';
+ const period=/\btomorrow\b/i.test(q)?'tomorrow':/\btoday\b/i.test(q)?'today':'now';
+ tail=tail.replace(/^like\s*/i,'').replace(/\b(?:right now|today|tomorrow|currently)\b/gi,'').replace(/\s+/g,' ').trim();
+ if(tail==='for')tail='';
+ if(/^(?:(?:for|in|at|around|near) )?(?:here|me|my (?:current )?(?:location|area)|where i(?:'m| am)(?: at)?|where i live|outside|locally)$/i.test(tail))tail='';
+ const place=tail.match(/^(?:in|for|at|near) ([\p{L}\p{M}\d][\p{L}\p{M}\d ,.'-]{0,85})$/iu);
+ if(tail&&!place)return null;
+ return {type:'weather',value:place?place[1]:'',period};
+}
+if(typeof module!=='undefined')module.exports=phoneIntent;

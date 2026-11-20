@@ -1,0 +1,69 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'com.nth.notaai'
+    compileSdk 36
+    defaultConfig {
+        applicationId 'com.nth.notaai'
+        minSdk 26
+        targetSdk 36
+        versionCode 4
+        versionName '0.4.0'
+    }
+    androidResources { noCompress += 'pack' }
+    packaging { jniLibs { useLegacyPackaging = true } }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+configurations {
+    kokoroWeights {
+        canBeConsumed = false
+        canBeResolved = true
+        transitive = false
+    }
+}
+
+dependencies {
+    implementation 'com.google.mediapipe:tasks-audio:1.2.3'
+    kokoroWeights 'litert-community:kokoro_int8_fp16:bf1c2405642aa310bd210205c22d3ae1abc253fb@litertlm'
+}
+
+abstract class BundleKokoro extends DefaultTask {
+    @InputFiles @PathSensitive(PathSensitivity.NONE)
+    abstract ConfigurableFileCollection getWeights()
+
+    @OutputDirectory
+    abstract DirectoryProperty getOutputDir()
+
+    @TaskAction
+    void bundle() {
+        def target = outputDir.file('voice/kokoro-v1.pack').get().asFile.toPath()
+        java.nio.file.Files.createDirectories(target.parent)
+        def partial = java.nio.file.Files.createTempFile(target.parent, 'kokoro-', '.tmp')
+        def digest = java.security.MessageDigest.getInstance('SHA-256')
+        try {
+            weights.singleFile.withInputStream { input ->
+                new java.util.zip.GZIPOutputStream(partial.toFile().newOutputStream(), 65536).withCloseable { output ->
+                    def verified = new java.security.DigestInputStream(input, digest)
+                    verified.transferTo(output)
+                }
+            }
+            if (digest.digest().encodeHex().toString() != 'e7b931ee5d4b7104012a838c9eee240d19ea69cb3ca269041a3274f83dbb7fa1') {
+                throw new GradleException('The Kokoro voice model failed SHA-256 verification.')
+            }
+            java.nio.file.Files.move(partial, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+        } finally {
+            java.nio.file.Files.deleteIfExists(partial)
+        }
+    }
+}
+
+androidComponents.onVariants(androidComponents.selector().all()) { variant ->
+    def bundleVoice = tasks.register("bundle${variant.name.capitalize()}Kokoro", BundleKokoro) {
+        weights.from(configurations.kokoroWeights)
+    }
+    variant.sources.assets.addGeneratedSourceDirectory(bundleVoice) { it.outputDir }
+}

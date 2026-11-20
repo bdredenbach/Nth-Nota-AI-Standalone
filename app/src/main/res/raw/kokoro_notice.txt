@@ -1,0 +1,7 @@
+Kokoro-82M model and voice weights by hexgrad. Android LiteRT bundle by litert-community.
+https://huggingface.co/hexgrad/Kokoro-82M
+https://huggingface.co/litert-community/Kokoro-82M
+Model file: kokoro_int8_fp16.litertlm
+SHA-256: e7b931ee5d4b7104012a838c9eee240d19ea69cb3ca269041a3274f83dbb7fa1
+MediaPipe Audio Tasks by Google. https://github.com/google-ai-edge/mediapipe
+These components are distributed under the Apache License, Version 2.0. See apache_2.txt.
