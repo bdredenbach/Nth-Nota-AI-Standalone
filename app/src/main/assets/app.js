@@ -103,7 +103,7 @@ function phoneActions(t,i){
  return choices+(canRetry?button('retry','Retry this question','arrow','data-i="'+i+'"','text-btn'):'');
 }
 function showSettings(){
- modal('Settings',button('phone-setup','Phone setup','sliders','','choice framed')+'<h3>Cloud questions</h3><p class="desc">When you send, your question and recent replies go to Nth Nota’s service. Search terms and requested links can go to its search and page providers. Attached text goes to the writing service when you send it.</p>'+
+ modal('Settings',button('phone-setup','Phone setup','sliders','','choice framed')+'<h3>Cloud questions</h3><p class="desc">When you send, your question and relevant saved memories and recent replies go to Nth Nota’s service. Search terms and requested links can go to its search and page providers. Attached text goes to the writing service when you send it.</p>'+
  button('cloud',N.cloud()?'Cloud questions on':'Cloud questions off',N.cloud()?'check':'lock','','choice framed')+ChatImages.settings()+
  '<h3>Appearance</h3><div class="chips">'+['system','light','dark'].map(k=>button('theme',k[0].toUpperCase()+k.slice(1),null,'data-val="'+k+'" aria-pressed="'+(prefs.appearance===k)+'"','pill'+(prefs.appearance===k?' selected':''))).join('')+'</div>'+
  '<h3>Speaking voice</h3><div class="chips">'+[['heart','Kokoro · Heart'],['system','Android voice']].map(([key,name])=>{const active=(prefs.voice||'heart')===key;return button('set-voice',name,null,'data-val="'+key+'" aria-pressed="'+active+'"','pill'+(active?' selected':''));}).join('')+'</div>'+
@@ -111,10 +111,10 @@ function showSettings(){
  '<label class="pace-label" for="voice-pace">Speaking pace <output id="pace-value" for="voice-pace">'+voiceRate()+'%</output></label>'+
  '<input type="range" id="voice-pace" aria-label="Speaking pace" min="75" max="110" step="5" value="'+voiceRate()+'" aria-valuetext="'+voiceRate()+' percent">'+
  '<button class="choice framed" data-action="preview-voice">'+icon('sound')+'<span id="voice-preview-label" aria-live="polite">Preview voice</span></button>'+
- '<h3>On this device</h3><p class="desc">Chats, drafts and Desk cards are stored here. Temporary chats stay in memory. Android handles microphone input through its speech service.</p><p class="version">Nth Nota AI · 0.10.0</p>','settings');
+ '<h3>On this device</h3><p class="desc">Chats, drafts and Desk cards are stored here. Temporary chats stay in memory. Android handles microphone input through its speech service.</p><p class="version">Nth Nota AI · 0.11.0</p>','settings');
 }
 function consentDialog(){
- modal('Allow cloud questions?','<p class="desc">Sending a message shares it and recent replies with Nth Nota’s Cloudflare and Groq service. Web questions can share search terms or requested links with research providers. Sending an attached file shares its text and file names. Photos have their own sharing choice.</p><p class="desc">You can turn this off in Settings. Your draft stays here until you press Send.</p>'+button('agree','Allow cloud questions','check','','primary')+button('close','Keep off',null,'','choice centered'),'consent');
+ modal('Allow cloud questions?','<p class="desc">Sending a message shares it and relevant saved memories and recent replies with Nth Nota’s Cloudflare and Groq service. Web questions can share search terms or requested links with research providers. Sending an attached file shares its text and file names. Photos have their own sharing choice.</p><p class="desc">You can turn this off in Settings. Your draft stays here until you press Send.</p>'+button('agree','Allow cloud questions','check','','primary')+button('close','Keep off',null,'','choice centered'),'consent');
 }
 function sourceRows(list){return list && list.length?'<details class="sources"><summary>'+icon('link')+'Sources · '+list.length+'</summary>'+list.map(s=>button('source',s.title,'sendout','data-url="'+M.esc(s.url)+'"','source-row')).join('')+'</details>':'';}
 function emptyHome(){
@@ -126,12 +126,13 @@ function renderChat(scroll=false){
  else{
  main.innerHTML='<div class="chat-body"><div class="context-label">'+icon(thread.temporary?'eye':'chat')+M.esc(thread.temporary?'Temporary chat':thread.title)+'</div>'+thread.turns.map((t,i)=>{
  if(t.retired)return '';
+ if(t.kind==='memory')return ChatMemory.localTurn(t,i);
  if(t.kind)return ConversationTools.localTurn(t,i);
  const attr='data-i="'+i+'"';
  let answer;
  if(t.status==='waiting') answer='<div class="working" role="status"><i></i>'+(t.image?'Examining your image…':t.file?'Reading your file…':t.attachment?'Reading your passage…':t.mode==='search'?'Looking for sources…':'Working on your reply…')+'</div>';
  else if(t.status==='error')answer='<div class="problem"><p>'+M.esc(t.error)+'</p>'+button('retry','Retry','arrow',attr,'text-btn')+button('editq','Edit question','pen',attr,'text-btn')+'</div>';
- else answer='<div class="answer-text">'+M.markdown(t.reply)+'</div>'+(t.canAskText?button('ask-image-text','Ask online about this text','pen',attr,'action-chip'):'')+(t.quote?button('practice-line','“'+t.quote+'”','chat','data-i="'+t.line+'"','choice framed'):'')+(t.phone?phoneActions(t,i):'')+sourceRows(t.sources)+(t.unavailable?button('web-fallback','Search in browser','sendout',attr,'text-btn'):'')+'<div class="reply-meta">'+M.esc([t.imageMethod|| (t.phone?(t.weatherData?'Weather · MET Norway':'On this phone'):t.unavailable?'Couldn’t verify':(t.searched?'Web search':t.attachment?'Writing':'AI reply')),t.provider].filter(Boolean).join(' · '))+'</div><div class="reply-actions">'+Shelf.replyAction(t,i)+button('to-desk','To Desk','desk',attr,'action-chip')+button('second-look','Second look','compass',attr,'text-btn second-look')+'<button data-action="copy-reply" '+attr+' class="bare" aria-label="Copy reply">'+icon('copy')+'</button><button data-action="more" '+attr+' class="bare" aria-label="More reply actions">'+icon('more')+'</button></div>';
+ else answer='<div class="answer-text">'+M.markdown(t.reply)+'</div>'+(t.canAskText?button('ask-image-text','Ask online about this text','pen',attr,'action-chip'):'')+(t.quote?button('practice-line','“'+t.quote+'”','chat','data-i="'+t.line+'"','choice framed'):'')+(t.phone?phoneActions(t,i):'')+sourceRows(t.sources)+ChatMemory.citations(t)+(t.unavailable?button('web-fallback','Search in browser','sendout',attr,'text-btn'):'')+'<div class="reply-meta">'+M.esc([t.imageMethod|| (t.phone?(t.weatherData?'Weather · MET Norway':'On this phone'):t.unavailable?'Couldn’t verify':(t.searched?'Web search':t.attachment?'Writing':'AI reply')),t.provider].filter(Boolean).join(' · '))+'</div><div class="reply-actions">'+Shelf.replyAction(t,i)+button('to-desk','To Desk','desk',attr,'action-chip')+button('second-look','Second look','compass',attr,'text-btn second-look')+'<button data-action="copy-reply" '+attr+' class="bare" aria-label="Copy reply">'+icon('copy')+'</button><button data-action="more" '+attr+' class="bare" aria-label="More reply actions">'+icon('more')+'</button></div>';
  return '<article class="turn" id="turn-'+i+'"><div class="question">'+(t.image?ChatImages.turnPhoto(t,i):'')+(t.file?button('turn-file',thread.documents?.[t.file]?.name||'File','clip',attr,'turn-file'):'')+(t.attachment?'<small>'+icon('clip')+' Attached passage</small>':'')+M.esc(t.question)+'</div><div class="byline"><span class="mini-mark">N</span> '+M.esc(t.practice==='role'?thread.rehearsal.role:t.practice==='coach'?'Nota · Coach':'Nth Nota AI')+'</div>'+answer+'</article>';
  }).join('')+'</div>';
  }
@@ -231,6 +232,7 @@ function runTurn(t,prior,voice=null){
  const intent=t.image||t.file||t.attachment||t.practice?null:phoneIntent(t.question,prior[prior.length-1]);
  if(t.file&&!thread.documents?.[t.file]){notice('Choose this file again to ask about it.');return false;}
  const payload=t.practice?Rehearsal.prompt(thread.rehearsal,t,prior):M.request(t,prior,thread.documents?.[t.file]);
+ ChatMemory.prepare(payload,t,prior,intent);
  if(payload.route==='write'&&payload.prompt.length>16000){notice('Shorten your question or attachment to fit the writing request.');return false;}
  t.status='waiting';delete t.error;job={id:M.id('ask'),turn:t,thread,voice};
  thread.updated=Date.now();saveThread();renderChat(true);
@@ -244,6 +246,7 @@ function send(skipFileLookup=false){
  if(!job&&!thread.image&&!thread.file&&!thread.attachment&&Thoughts.command(thread.draft)==='leave it here'){thread.draft='';ConversationTools.bookmark();return;}
  if(job){stopJob();return;}
  const question=thread.draft.trim()||(thread.image?'What can you tell me about this photo?':thread.file?'Summarize this file.':'');if(!question)return;
+ if(ChatMemory.command(question))return;
  try{if(!skipFileLookup && Shelf.intercept(question))return;}catch(e){Shelf.fail(e);return;}
  if(!thread.image&&!thread.file&&!thread.attachment){const origin=thread,local=Studio.command(question);if(local){origin.draft='';saveThread(origin);if(page==='chat'&&origin===thread){renderChat();}if(local.say)notice(local.say);return;}}
  if(thread.image && ChatImages.needsChoice(thread.imageMode)){ChatImages.choose(send);return;}
@@ -290,13 +293,13 @@ function incomingFile(target,text){
 }
 function replyMenu(i){
  const doc=thread.documents?.[thread.turns[i]?.file];
- sheetTurn=i;modal('Reply actions',(doc?.savedId&&!doc.editTarget?button('fs-revise-reply','Save as a new version','pen','data-id="'+i+'"'):'')+button('fs-save-reply','Save reply as file','down','data-id="'+i+'"')+button('branch','Branch from here','fork')+button('editq','Edit question in a new branch','pen','data-i="'+i+'"')+button('read','Read aloud','sound')+button('silence','Stop reading','stop')+button('share-reply','Share reply','sendout'));
+ sheetTurn=i;modal('Reply actions',(!thread.temporary?button('mem-reply','Remember this','note','data-i="'+i+'"'):'')+(doc?.savedId&&!doc.editTarget?button('fs-revise-reply','Save as a new version','pen','data-id="'+i+'"'):'')+button('fs-save-reply','Save reply as file','down','data-id="'+i+'"')+button('branch','Branch from here','fork')+button('editq','Edit question in a new branch','pen','data-i="'+i+'"')+button('read','Read aloud','sound')+button('silence','Stop reading','stop')+button('share-reply','Share reply','sendout'));
 }
 let menuId='';
 function itemMenu(id,isCard){
  const it=(isCard?cards:threads).get(id);if(!it)return;menuId=id;
  const organize=Organizer.options(id);
- modal(Organizer.label(it),organize+button('rename','Rename','pen')+button('export','Export Markdown','export')+button('share-item','Share','sendout')+button('confirm-delete','Delete','trash'),'item');
+ modal(Organizer.label(it),organize+(!isCard&&id===thread.id?button('mem-open','Memory','note'):'')+button('rename','Rename','pen')+button('export','Export Markdown','export')+button('share-item','Share','sendout')+button('confirm-delete','Delete','trash'),'item');
 }
 function itemFromMenu(){return cards.get(menuId)||threads.get(menuId);}
 function itemText(it){return cards.has(it.id)?'# '+it.title+'\n\n'+M.cardText(it)+M.sourceText(it.sources):M.transcript(it);}
@@ -319,6 +322,7 @@ let pendingTemp=false;
 document.addEventListener('click',event=>{
  const el=event.target.closest('[data-action]');if(!el)return;
  const action=el.dataset.action,i=Number(el.dataset.i),v=el.dataset.val,id=el.dataset.id;
+ if(action.startsWith('mem-')){ChatMemory.handle(action,id,i);return;}
  if(action.startsWith('fs-')){Shelf.handle(action.slice(3),id,el).catch(Shelf.fail);return;}
  if(action.startsWith('org-')&&Organizer.handle(action,id))return;
  switch(action){

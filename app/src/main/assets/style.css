@@ -192,3 +192,8 @@ pre,code{font-family:monospace;background:var(--muted);border-radius:4px;font-si
 .file-fold{margin:12px 0;color:var(--ink)}
 .file-fold summary{cursor:pointer;color:var(--brand);padding:8px 0}
 #shelf-output{font-family:monospace;font-size:.88rem;line-height:1.45;max-height:44vh}
+
+.memory-row{margin:5px 0;align-items:flex-start;text-align:start;overflow-wrap:anywhere}
+.memory-row span,.memory-row small{display:block}
+.memory-row small{margin-top:4px;color:var(--sub)}
+.memory-text{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.55}

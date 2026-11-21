@@ -146,7 +146,7 @@ const LiveChat = (() => {
   if(hold && s.unsent){text=s.unsent+' Hold that thought';}
   if(fromMic||hold)s.unsent='';
   if(fromMic && s.pinNext){s.pinNext=false;if(!Thoughts.pinRequest(text))text+=' Hold that thought';}
-  const result=s.mode==='walk'?Walkthrough.handle(s,text):(fromMic?Predictions.voice(s,text):null)||Studio.command(text,true)||(thread.rehearsal?null:ConversationTools.handle(text));
+  const result=s.mode==='walk'?Walkthrough.handle(s,text):(fromMic&&!thread.ramble?ChatMemory.command(text,true):null)||(fromMic?Predictions.voice(s,text):null)||Studio.command(text,true)||(thread.rehearsal?null:ConversationTools.handle(text));
   if(!result)return false;
   if(session!==s)return true;
   if(!fromMic&&hold&&['thinking','loading','speaking'].includes(s.state))return true;

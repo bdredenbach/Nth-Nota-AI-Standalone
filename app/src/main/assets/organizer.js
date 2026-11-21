@@ -1,7 +1,7 @@
 'use strict';
 
 const Organizer = (() => {
- let state={projects:{}, placement:{}, pins:{}};
+ let state={projects:{}, placement:{}, pins:{}, memories:{}};
  let currentProject='', formProject='', formItem='', drawerQuery='', fromDrawer=false;
  let returnRoute=null, pendingOpen=null;
  const attr=id=>'data-id="'+M.esc(id)+'"';
@@ -10,9 +10,9 @@ const Organizer = (() => {
  const sorted=()=>Object.entries(state.projects).sort((a,b)=>a[1].localeCompare(b[1]));
  const section=label=>'<h3 class="org-section">'+M.esc(label)+'</h3>';
  const isPage=()=>['projects','project','pinned'].includes(page);
- function load(data){if(data)state={projects:data.projects||{},placement:data.placement||{},pins:data.pins||{}};}
+ function load(data){if(data)state={projects:data.projects||{},placement:data.placement||{},pins:data.pins||{},memories:data.memories||{}};}
  function change(update){
-  const next={projects:{...state.projects},placement:{...state.placement},pins:{...state.pins}};
+  const next={projects:{...state.projects},placement:{...state.placement},pins:{...state.pins},memories:{...state.memories}};
   update(next);
   if(!persist('organizer',next))return false;
   state=next;return true;
@@ -81,7 +81,7 @@ const Organizer = (() => {
    if(!html)html='<p class="desc">No results for “'+M.esc(drawerQuery.trim())+'”.</p>';
   }else{
    const links=sorted().slice(0,3).map(([id,name])=>button('org-project',name,'folder',attr(id),'drawer-project')).join('');
-   html='<div class="drawer-links">'+button('org-projects','Projects','folder')+(links?'<div class="drawer-projects">'+links+'</div>':'')+button('fs-open','Files','clip')+button('desk','Desk','desk')+button('history','All chats','history')+'</div>';
+   html='<div class="drawer-links">'+button('org-projects','Projects','folder')+(links?'<div class="drawer-projects">'+links+'</div>':'')+button('fs-open','Files','clip')+(page==='chat'&&!thread.temporary?button('mem-open','Memory','note'):'')+button('desk','Desk','desk')+button('history','All chats','history')+'</div>';
    const pinned=items.filter(it=>hasPin(it.id));
    if(pinned.length){
     html+=section('Pinned')+pinned.slice(0,4).map(it=>row(it)).join('');
@@ -109,7 +109,7 @@ const Organizer = (() => {
    if(!name){navigate('projects');return;}
    const members=all().filter(it=>projectOf(it.id)===currentProject).sort(pinOrder);
    html=button('org-projects','Projects','back','','text-btn')+title(name,'org-options','Project options','more')+
-    '<div class="project-actions">'+button('org-project-chat','New chat','new','','action-chip')+button('org-add','Add existing','plus','','action-chip')+'</div>';
+    '<div class="project-actions">'+button('org-project-chat','New chat','new','','action-chip')+button('org-add','Add existing','plus','','action-chip')+button('mem-project','Project memory','note',attr(currentProject),'action-chip')+'</div>';
    if(!members.length)html+='<p class="desc">Start a chat here or add a saved chat or Desk card.</p>';
    else{
     const chats=members.filter(it=>threads.has(it.id)),desk=members.filter(it=>cards.has(it.id));
@@ -236,9 +236,9 @@ const Organizer = (() => {
   case 'org-save':saveForm();break;
   case 'org-options':modal(state.projects[currentProject],button('org-rename','Rename project','pen')+button('org-confirm-remove','Remove project','trash'));break;
   case 'org-rename':form(currentProject);break;
-  case 'org-confirm-remove':confirmAction('Remove this project?','Its chats and cards will stay in All chats and Desk.','org-remove','Remove project');break;
+  case 'org-confirm-remove':confirmAction('Remove this project?','This deletes the project’s shared memories. Its chats and cards stay in All chats and Desk.','org-remove','Remove project');break;
   case 'org-remove':
-   if(change(next=>{delete next.projects[currentProject];for(const [key,group] of Object.entries(next.placement))if(group===currentProject)delete next.placement[key];}))navigate('projects');
+   if(change(next=>{delete next.projects[currentProject];delete next.memories[currentProject];for(const [key,group] of Object.entries(next.placement))if(group===currentProject)delete next.placement[key];}))navigate('projects');
    break;
   case 'org-add':addMenu();break;
   case 'org-add-item':
@@ -256,5 +256,7 @@ const Organizer = (() => {
   }
   return true;
  }
- return {load,label,hasPin,pinOrder,searchable,inherit,forget,membership,badge,drawerList,candidates,handle,openItem,confirmSwitch,options,finishItem,isPage,render,resetReturn,back};
+ function projectMemories(id){return state.projects[id]?(state.memories[id]||[]):[];}
+ function storeMemories(id,rows){return !!state.projects[id]&&change(next=>{next.memories[id]=rows;});}
+ return {projectOf,projectName:id=>state.projects[id],projectMemories,storeMemories,load,label,hasPin,pinOrder,searchable,inherit,forget,membership,badge,drawerList,candidates,handle,openItem,confirmSwitch,options,finishItem,isPage,render,resetReturn,back};
 })();

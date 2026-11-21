@@ -2,13 +2,21 @@
 
 A standalone Android assistant with two work surfaces. Chat holds a conversation. Desk holds editable notes, drafts and checklists that can outlive that conversation. A saved card carries its source links and opens the original thread while that thread exists. **Ask about this card** sends edits back through a new, reviewable draft.
 
-Version 0.10.0 is a debug-signed testing build. Application ID `com.nth.notaai`. Minimum Android 8.0, target Android 16 / API 36. It can be installed alongside the Nth Nota notes app and the Nth Desktop launchers.
+Version 0.11.0 is a debug-signed testing build. Application ID `com.nth.notaai`. Minimum Android 8.0, target Android 16 / API 36. It can be installed alongside the Nth Nota notes app and the Nth Desktop launchers.
 
 ## Organizing chats and Desk cards
 
 Open the menu at the top left to search saved chats, Desk cards and project names. Search runs on the device and includes chat messages, card text and attachment names. Pinned items appear above recent chats. Use the options beside an item to pin, rename or move it.
 
 Open **Projects** to create a project. Inside it, use **New chat** or **Add existing**. Cards saved from a project chat and branches from that chat start in the same project. Each item can be moved individually. Removing a project keeps its contents in All chats and Desk. Temporary conversations stay outside search and projects. Project membership does not add other chats to a model request.
+
+## Chat and project memory
+
+Say or type **“Remember that the meeting is Friday”** to save a note for this chat. Add **“for this project”** to share it with existing and future chats in the same project. You can also open a reply’s **More → Remember this**, select the detail to keep, and choose its scope. A note saved from a file reply links back to the exchange and its saved file version when available.
+
+**Menu → Memory** shows both scopes for the current chat. **Project memory** inside a project shows its shared notes. Ask **“What do you remember about the meeting?”** to review matches locally. Select an entry to see its source, edit it or forget it. After recalling one entry, **“Update that to …”** and **“Forget that”** address that entry. Saving a second value under the same topic in the same scope asks which value to keep.
+
+The phone stores the entries. For ordinary text and live chat questions, Nota selects up to three relevant entries from the chat and its current project. With cloud questions enabled those notes accompany the request. **Memory context** under a reply identifies the entries shared for it. Temporary chats neither read nor save entries. Moving a chat changes which project it draws from. Removing a project deletes its shared entries. Forgetting a memory leaves past messages and files in place.
 
 ## Files and versions
 
