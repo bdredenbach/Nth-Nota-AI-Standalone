@@ -4,6 +4,13 @@ function phoneIntent(question, previous) {
  const q=String(question).trim().replace(/[’‘]/g,"'").replace(/[?!.]+$/g,'').trim()
   .replace(/^(?:(?:hey|hi)[, ]+(?:nth )?nota[, ]+|(?:nth )?nota[, ]+)/i,'')
   .replace(/^(?:please |(?:can|could|would|will) you (?:please )?)/i,'').replace(/,? please$/i,'').trim();
+ const placeQuestion=q.replace(/^(?:tell me|show me|give me|do you know|check|find)\s+/i,'')
+  .replace(/\b(?:currently|right now|at the moment)\b/gi,'').replace(/\s+/g,' ').trim();
+ if(/^(?:where (?:am i|i am|i'm)(?: at| located)?|(?:what|which) (?:city|town|area|state) (?:am i in|i am in|i'm in)|(?:(?:what(?:'s| is)|where(?:'s| is)) )?my (?:current |approximate )?(?:location|position))$/i.test(placeQuestion))return {type:'location'};
+ const forecastQuestion=placeQuestion.replace(/\b(?:(?:that|this|the last|the|my|your) )?(?:weather forecast|weather report|forecast|weather)\b/gi,'forecast');
+ if(/^(?:what|which) (?:location|area|city|town|place|zip(?: code)?) (?:did you use (?:to get|for) forecast|was used for forecast|did forecast use|(?:was|is) forecast (?:for|based on))$/i.test(forecastQuestion)||
+    /^(?:where (?:was|is) forecast for|where did you get forecast for|what(?:'s| is) the location (?:of|for) forecast)$/i.test(forecastQuestion))return {type:'forecastArea'};
+ if(previous?.weatherData&&/^(?:(?:what|which) (?:location|area|city|place|zip(?: code)?) (?:did you use|was that(?: for)?)|where was that(?: for)?)$/i.test(placeQuestion))return {type:'forecastArea'};
  if(/^(?:how much (?:battery|charge) (?:do i have|is) left|how much battery (?:do i have|is left)|is my phone charging)$/i.test(q))return {type:'battery'};
  if(/^(?:what (?:phone|device) (?:am i using|do i have|is this)|what (?:android version|version of android) (?:am i (?:using|running)|is this|do i have)|show (?:my )?phone info)$/i.test(q))return {type:'device'};
  if(/^(?:how much (?:free )?(?:storage|space) (?:do i have(?: left)?|is (?:free|left|available))(?: on my phone)?|show (?:my )?(?:free |available )?storage)$/i.test(q))return {type:'storage'};
@@ -32,4 +39,15 @@ function phoneIntent(question, previous) {
  if(tail&&!place)return null;
  return {type:'weather',value:place?place[1]:'',period};
 }
-if(typeof module!=='undefined')module.exports=phoneIntent;
+// The native weather answer is the source. Never reconstruct a past forecast from today's settings.
+function forecastAreaReply(turn){
+ if(!turn)return 'There isn’t a completed local forecast in this chat yet.';
+ if(turn.forecastArea)return turn.forecastArea;
+ // Builds before 0.12 saved the displayed label, but no separate area record.
+ const match=(turn.reply||'').match(/^The forecast for (.+?) is -?\d+°[FC]\b|^(?:Today|Tomorrow) in (.+?), the available hourly forecast/i);
+ const label=match&&(match[1]||match[2]);
+ if(label==='your current area')return 'That forecast used your phone’s approximate location. The city name wasn’t saved with that forecast.';
+ if(label)return 'That forecast was for '+label+'.';
+ return 'The location wasn’t saved with that forecast.';
+}
+if(typeof module!=='undefined'){module.exports=phoneIntent;module.exports.forecastAreaReply=forecastAreaReply;}

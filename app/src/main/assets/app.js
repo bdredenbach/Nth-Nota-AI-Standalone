@@ -77,7 +77,7 @@ function phoneSetup(step=0){
  let content='';
  const choice=(key,label,glyph='sliders')=>button('phone-config',label,glyph,'data-val="'+key+'"','choice framed');
  if(phoneStep===0){
-  content='<h3>Local weather</h3><p class="desc">Ask “What’s the weather where I’m at?” Nota can use your approximate area while open, or a city you choose. Weather lookups send a rounded position to MET Norway. Android looks up typed places.</p>'+
+  content='<h3>Location and weather</h3><p class="desc">Ask “Where am I?” for your approximate area. Android looks up area names while Nota is open. Weather uses your phone’s area or a saved place and sends a rounded position to MET Norway.</p>'+
    choice('weather',state.weather?'Weather lookups on · turn off':'Enable weather lookups',state.weather?'check':'globe')+
    choice('follow',state.follow?'Approximate location on · turn off':'Use approximate location',state.follow?'check':'compass')+
    (!state.locationService?choice('locationSettings','Open phone location settings'):'')+
@@ -100,7 +100,8 @@ function phoneSetup(step=0){
 function phoneActions(t,i){
  const choices=(t.actions||[]).map((a,n)=>button('phone-action',a.label,a.type==='setup'?'sliders':'sendout','data-i="'+i+'" data-n="'+n+'"','choice framed')).join('');
  const canRetry=t.retryable||(t.actions||[]).some(a=>a.type==='setup');
- return choices+(canRetry?button('retry','Retry this question','arrow','data-i="'+i+'"','text-btn'):'');
+ const area=t.weatherData?'<details class="sources"><summary>'+icon('compass')+'Location used</summary><p>'+M.esc(forecastAreaReply(t))+'</p></details>':'';
+ return area+choices+(canRetry?button('retry','Retry this question','arrow','data-i="'+i+'"','text-btn'):'');
 }
 function showSettings(){
  modal('Settings',button('phone-setup','Phone setup','sliders','','choice framed')+'<h3>Cloud questions</h3><p class="desc">When you send, your question and relevant saved memories and recent replies go to Nth Nota’s service. Search terms and requested links can go to its search and page providers. Attached text goes to the writing service when you send it.</p>'+
@@ -111,7 +112,7 @@ function showSettings(){
  '<label class="pace-label" for="voice-pace">Speaking pace <output id="pace-value" for="voice-pace">'+voiceRate()+'%</output></label>'+
  '<input type="range" id="voice-pace" aria-label="Speaking pace" min="75" max="110" step="5" value="'+voiceRate()+'" aria-valuetext="'+voiceRate()+' percent">'+
  '<button class="choice framed" data-action="preview-voice">'+icon('sound')+'<span id="voice-preview-label" aria-live="polite">Preview voice</span></button>'+
- '<h3>On this device</h3><p class="desc">Chats, drafts and Desk cards are stored here. Temporary chats stay in memory. Android handles microphone input through its speech service.</p><p class="version">Nth Nota AI · 0.11.0</p>','settings');
+ '<h3>On this device</h3><p class="desc">Chats, drafts and Desk cards are stored here. Temporary chats stay in memory. Android handles microphone input through its speech service.</p><p class="version">Nth Nota AI · 0.12.0</p>','settings');
 }
 function consentDialog(){
  modal('Allow cloud questions?','<p class="desc">Sending a message shares it and relevant saved memories and recent replies with Nth Nota’s Cloudflare and Groq service. Web questions can share search terms or requested links with research providers. Sending an attached file shares its text and file names. Photos have their own sharing choice.</p><p class="desc">You can turn this off in Settings. Your draft stays here until you press Send.</p>'+button('agree','Allow cloud questions','check','','primary')+button('close','Keep off',null,'','choice centered'),'consent');
@@ -237,7 +238,17 @@ function runTurn(t,prior,voice=null){
  t.status='waiting';delete t.error;job={id:M.id('ask'),turn:t,thread,voice};
  thread.updated=Date.now();saveThread();renderChat(true);
  if(t.image)N.askImage(job.id,JSON.stringify({id:t.image.id,mode:t.imageMode||'auto',question:t.question,session:voice?.id||'',token:voice?.token||'',history:ChatImages.history(t.image,prior)}));
- else if(intent){t.phone=true;if(intent.type==='weather')t.wx={value:intent.value,period:intent.period};N.askPhone(job.id,JSON.stringify(intent),voice?voice.id:'',voice?voice.token:'');}
+ else if(intent){
+  t.phone=true;
+  if(intent.type==='forecastArea'){
+   let forecast;
+   for(let i=prior.length-1;i>=0;i--){const row=prior[i];if(row.phone&&row.weatherData&&row.status==='ok'&&!row.retired){forecast=row;break;}}
+   window.notaEvent('phoneAnswer',job.id,JSON.stringify({text:forecastAreaReply(forecast)}));
+  }else{
+   if(intent.type==='weather')t.wx={value:intent.value,period:intent.period};
+   N.askPhone(job.id,JSON.stringify(intent),voice?voice.id:'',voice?voice.token:'');
+  }
+ }
  else if(voice)N.askLive(job.id,JSON.stringify(payload),voice.id,voice.token);
  else N.ask(job.id,JSON.stringify(payload));
  return true;
@@ -565,7 +576,7 @@ window.notaEvent=(event,...args)=>{
  const active=job;job=null;const t=active.turn;
  if(event==='failure'){t.status='error';t.error=args[1];}
  else if(event==='phoneAnswer' && t.phone){
-  try{const d=JSON.parse(args[1]);Object.assign(t,{status:'ok',reply:d.text,sources:M.sources(d.sources),actions:d.actions||[],weatherData:!!d.weatherData,retryable:!!d.retryable});}
+  try{const d=JSON.parse(args[1]);Object.assign(t,{status:'ok',reply:d.text,sources:M.sources(d.sources),actions:d.actions||[],weatherData:!!d.weatherData,forecastArea:d.weatherData?d.forecastArea:undefined,retryable:!!d.retryable});}
   catch(_){t.status='error';t.error='Couldn’t read the phone response.';}
  }
  else if(event==='answer'){

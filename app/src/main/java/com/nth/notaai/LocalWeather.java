@@ -17,12 +17,12 @@ final class LocalWeather {
     private long expires;
 
     synchronized JSONObject forecast(double lat, double lon, String label, String period, boolean fahrenheit) throws Exception {
-        String key=String.format(Locale.ROOT,"lat=%.2f&lon=%.2f",lat,lon);
+        String key=String.format(Locale.ROOT,"lat=%.2f&lon=%.2f",AreaName.rounded(lat),AreaName.rounded(lon));
         if (cached==null || !grid.equals(key) || System.currentTimeMillis()>=expires) {
             if (Thread.currentThread().isInterrupted()) throw new InterruptedException();
             HttpsURLConnection http=(HttpsURLConnection)new URL("https://api.met.no/weatherapi/locationforecast/2.0/compact?"+key).openConnection();
             try {
-                http.setRequestProperty("User-Agent","NthNotaAI/0.6.0 (https://github.com/bdredenbach)");
+                http.setRequestProperty("User-Agent","NthNotaAI/0.12.0 (https://github.com/bdredenbach)");
                 http.setRequestProperty("Accept","application/json");
                 http.setConnectTimeout(9000); http.setReadTimeout(12000);
                 if(http.getResponseCode()!=200)throw new IOException("Forecast service unavailable");

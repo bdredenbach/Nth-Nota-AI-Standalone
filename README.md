@@ -2,7 +2,7 @@
 
 A standalone Android assistant with two work surfaces. Chat holds a conversation. Desk holds editable notes, drafts and checklists that can outlive that conversation. A saved card carries its source links and opens the original thread while that thread exists. **Ask about this card** sends edits back through a new, reviewable draft.
 
-Version 0.11.0 is a debug-signed testing build. Application ID `com.nth.notaai`. Minimum Android 8.0, target Android 16 / API 36. It can be installed alongside the Nth Nota notes app and the Nth Desktop launchers.
+Version 0.12.0 is a debug-signed testing build. Application ID `com.nth.notaai`. Minimum Android 8.0, target Android 16 / API 36. It can be installed alongside the Nth Nota notes app and the Nth Desktop launchers.
 
 ## Organizing chats and Desk cards
 
@@ -60,6 +60,8 @@ Open the **New conversation** menu for **Rehearsal room**, **My phrases**, or **
 
 First launch or upgrade offers three optional steps. Reopen them under **Settings → Phone setup**. The back and next controls let you return from Android special-access screens and check the actual grants. Changing phone settings or opening an app requires tapping its shortcut.
 
+- Ask **“Where am I?”** in text or Live voice to get a city or region using approximate foreground location. Android looks up the area name from a rounded position. A saved weather ZIP is identified separately if the phone cannot get a position. These phone replies stay out of general AI requests.
+- Open **Location used** under a forecast or ask **“What location did you use for that forecast?”**. Each forecast keeps its area description in the chat, including whether it came from the phone, a saved place or a named place. Older forecasts show what can be recovered from the original answer.
 - Weather can follow approximate foreground location, use a saved city or ZIP, or look up a place named in a question. Android resolves typed places. Nota sends coordinates rounded to two decimal places to MET Norway and credits the forecast source. An unavailable location falls back to the saved place, then offers setup. MET Norway supplies hourly forecasts, including the current hour. Dates use the phone time zone. Temperature units follow the device region.
 - Usage Access is optional and is used for the recent launchable apps from this phone profile in the last 24 hours. App shortcuts, Android settings, battery, storage and model/version questions work without Usage Access. Phone lookup results are excluded from subsequent AI conversation context.
 - Live voice can handle phone commands with cloud questions off. Android's microphone/recognition settings still apply. General AI questions use the existing cloud consent switch.

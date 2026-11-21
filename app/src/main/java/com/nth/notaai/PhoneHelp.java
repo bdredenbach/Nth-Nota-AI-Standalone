@@ -99,6 +99,7 @@ final class PhoneHelp {
         String val=call.optString("value").trim();
         switch(call.optString("type")){
             case "weather":return weather(val,call.optString("period","now"));
+            case "location":return currentArea();
             case "device":return reply("This phone is a "+Build.MANUFACTURER+" "+Build.MODEL+" running Android "+Build.VERSION.RELEASE+".");
             case "storage":{
                 StatFs space=new StatFs(activity.getFilesDir().getPath());
@@ -156,14 +157,42 @@ final class PhoneHelp {
         return reply(text).put("actions",items);
     }
 
+    private boolean canLocate(){return enabledLocation() && locationServices();}
+
+    private JSONObject missingArea(String reason)throws Exception{
+        String saved=prefs.getString("city","").trim();
+        if(!saved.isEmpty())reason+=saved.matches("[0-9]{5}(?:-[0-9]{4})?")
+            ?" Your saved weather ZIP is "+saved+".":" Your saved weather place is "+saved+".";
+        return setup(reason,"weather");
+    }
+
+    private JSONObject currentArea()throws Exception{
+        if(!enabledLocation())return missingArea("Turn on approximate location in Phone setup to find your current area.");
+        if(!locationServices())return missingArea("Phone location is off. Turn it on to find your current area.");
+        Location point=position(2);
+        if(point==null)return missingArea("I couldn’t get your current location.");
+        if(!canLocate())return missingArea("Location access changed before I could check your area.");
+        String name=AreaName.lookup(activity,point);
+        if(!canLocate())return missingArea("Location access changed before I could check your area.");
+        if(name.isEmpty())return reply("Your phone provided an approximate position, but Android couldn’t name the area.").put("retryable",true);
+        return reply("Your phone places you in or near "+name+". This is an approximate location.");
+    }
+
     private JSONObject weather(String asked,String period)throws Exception{
         if(!prefs.getBoolean("weather",false))return setup("For a local forecast, choose approximate location or save a city or ZIP in Phone setup. You can also enable weather for places you type.","weather");
         String place=asked;String saved=prefs.getString("city",""); Location point=null;
-        if(place.isEmpty() && enabledLocation() && locationServices())point=position();
+        if(place.isEmpty() && canLocate())point=position(15);
+        boolean fromPhone=point!=null;
         if(point==null && place.isEmpty())place=saved;
         if(point==null && place.isEmpty())return setup("I couldn’t get your current area. Check phone location or save a city or ZIP, then retry your question.","weather");
-        String label="your current area";
-        if(point==null){
+        String label,areaNote;
+        if(fromPhone){
+            if(!canLocate())return setup("Location access changed. Review Phone setup and retry.","weather");
+            String name=AreaName.lookup(activity,point);
+            label=name.isEmpty()?"your current area":name+" (approximate location)";
+            areaNote=name.isEmpty()?"That forecast used your phone’s approximate position. Android couldn’t name the area."
+                :"That forecast used your phone’s approximate location near "+name+".";
+        }else{
             if(!Geocoder.isPresent())return setup("This phone has no city lookup service. Choose approximate location to get a forecast.","weather");
             List<Address> matches;
             try{matches=new Geocoder(activity,Locale.getDefault()).getFromLocationName(place,4);}
@@ -178,12 +207,20 @@ final class PhoneHelp {
                     return reply("Several places match "+place+", including "+label+" and "+placeName(other,place)+". Ask again with the state or country.");
             }
             point=new Location("place");point.setLatitude(address.getLatitude());point.setLongitude(address.getLongitude());
-            if(asked.isEmpty())label+=" (saved place)";
+            String resolved=label.equalsIgnoreCase(place)?place:place+" ("+label+")";
+            if(asked.isEmpty()){
+                areaNote="That forecast used your saved weather place, "+resolved+".";
+                label+=" (saved place)";
+            }else areaNote="That forecast used the place you asked for, "+resolved+".";
         }
         if(Thread.currentThread().isInterrupted())throw new InterruptedException();
-        if(!prefs.getBoolean("weather",false) || ("your current area".equals(label)&&!enabledLocation()))return setup("Location or weather access changed. Review Phone setup and try again.","weather");
+        if(!prefs.getBoolean("weather",false) || (fromPhone&&!canLocate()))return setup("Location or weather access changed. Review Phone setup and try again.","weather");
         boolean f=Arrays.asList("US","BS","KY","PW").contains(Locale.getDefault().getCountry());
-        try{return forecasts.forecast(point.getLatitude(),point.getLongitude(),label,period,f).put("weatherData",true);}
+        try{
+            JSONObject result=forecasts.forecast(point.getLatitude(),point.getLongitude(),label,period,f);
+            if(!prefs.getBoolean("weather",false)||(fromPhone&&!canLocate()))return setup("Location or weather access changed. Review Phone setup and try again.","weather");
+            return result.put("weatherData",true).put("forecastArea",areaNote);
+        }
         catch(IOException e){return reply("I couldn’t get a fresh forecast for "+label+". Check your connection and retry.").put("retryable",true);}
     }
     private static String placeName(Address a,String fallback){
@@ -192,25 +229,25 @@ final class PhoneHelp {
         return a.getLocality()==null?fallback:String.join(", ",parts);
     }
 
-    private static boolean fresh(Location p){
+    private static boolean fresh(Location p,long maxAgeMinutes){
         if(p==null||p.getElapsedRealtimeNanos()<=0)return false;
         long age=SystemClock.elapsedRealtimeNanos()-p.getElapsedRealtimeNanos();
-        return age>=0&&age<=TimeUnit.MINUTES.toNanos(15);
+        return age>=0&&age<=TimeUnit.MINUTES.toNanos(maxAgeMinutes);
     }
     @android.annotation.SuppressLint("MissingPermission")
-    private Location position() throws InterruptedException {
+    private Location position(long maxAgeMinutes) throws InterruptedException {
         List<String> providers=new ArrayList<>();
         for(String name:Arrays.asList("fused",LocationManager.NETWORK_PROVIDER,LocationManager.PASSIVE_PROVIDER))
             if(locations.getProviders(true).contains(name))providers.add(name);
         Location best=null;
         for(String name:providers){
-            try{Location p=locations.getLastKnownLocation(name);if(fresh(p)&&(best==null||p.getElapsedRealtimeNanos()>best.getElapsedRealtimeNanos()))best=p;}
+            try{Location p=locations.getLastKnownLocation(name);if(fresh(p,maxAgeMinutes)&&(best==null||p.getElapsedRealtimeNanos()>best.getElapsedRealtimeNanos()))best=p;}
             catch(SecurityException|IllegalArgumentException ignored){}
         }
         if(best!=null)return best;
         BlockingQueue<Location> queue=new ArrayBlockingQueue<>(1);
         LocationListener listener=new LocationListener(){
-            public void onLocationChanged(Location p){if(fresh(p))queue.offer(p);}
+            public void onLocationChanged(Location p){if(fresh(p,maxAgeMinutes))queue.offer(p);}
             public void onStatusChanged(String p,int s,Bundle b){}
             public void onProviderEnabled(String p){}
             public void onProviderDisabled(String p){}

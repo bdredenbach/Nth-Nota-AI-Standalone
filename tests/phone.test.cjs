@@ -15,3 +15,28 @@ test('phone requests resolve only explicit actions, and private results stay out
  assert.equal(route('How much storage do I have left?').type,'storage');
  assert.deepEqual(model.context([{phone:true,status:'ok',question:'Recent apps',reply:'Private list'}]),[]);
 });
+
+test('direct location and historical forecast area are distinct device routes',()=>{
+ for(const text of ['Can you tell me where I am at currently?','Where am I?','Which city am I in right now?', 'Show me my approximate location']){
+  assert.deepEqual(route(text),{type:'location'});
+ }
+ const weather=route('What is the weather like where I am at currently?');
+ assert.deepEqual(weather,{type:'weather',value:'',period:'now'});
+ for(const text of ['What location did you use for that forecast?','What city was that weather forecast for?','Where is the forecast for?']){
+  assert.deepEqual(route(text),{type:'forecastArea'});
+ }
+ assert.deepEqual(route('Where was that for?',{weatherData:true}),{type:'forecastArea'});
+ for(const text of ['Where am I in this book?', 'Tell a story about where I am.', 'Where is my friend right now?', 'Where was that for?']){
+  assert.equal(route(text),null);
+ }
+});
+
+test('forecast area comes from the selected exchange, including legacy replies',()=>{
+ const reply=route.forecastAreaReply;
+ assert.match(reply(),/isn’t a completed/);
+ assert.equal(reply({forecastArea:'That forecast used a named place.'}),'That forecast used a named place.');
+ assert.match(reply({reply:'The forecast for your current area is 44°F with clear skies.'}),/city name wasn’t saved/);
+ assert.match(reply({reply:'Tomorrow in Erie, PA (saved place), the available hourly forecast ranges from 40°F to 60°F.'}),/Erie, PA \(saved place\)/);
+ assert.match(reply({reply:'The forecast for Toronto is -4°C with snow.'}),/Toronto/);
+ assert.match(reply({reply:'An older format without a label.'}),/wasn’t saved/);
+});
