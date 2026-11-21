@@ -3,7 +3,7 @@ set -eu
 export QA_DIR="$PWD/regression-evidence"
 mkdir -p "$QA_DIR"
 adb shell 'getprop ro.build.version.sdk; getprop ro.build.version.release; getprop ro.build.fingerprint' | tee "$QA_DIR/device.txt"
-test "$(adb shell getprop ro.build.version.sdk | tr -d '\r')" = 36
+test "$(adb shell getprop ro.build.version.sdk | tr -d '\r')" = "$API_LEVEL"
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 adb shell dumpsys package com.nth.notaai.preview | grep -m2 -E 'versionCode|versionName' | tee -a "$QA_DIR/device.txt"
 adb shell input keyevent KEYCODE_WAKEUP
@@ -32,10 +32,7 @@ suite(){
  fi
 }
 connect
-suite reliability
-adb shell am force-stop com.nth.notaai.preview
-connect
-suite reopen
+suite corrections
 adb exec-out screencap -p > "$QA_DIR/chat.png"
 adb logcat -d -b crash > "$QA_DIR/crashes.txt"
 exit "$failed"

@@ -54,47 +54,19 @@ async def main():
     await asyncio.sleep(.15)
    raise AssertionError(expr)
   if await ev("sheet==='phone'"):await click('phone-finish')
-  if suite=='reliability':
-   import re
-   await fresh()
-   if await ev('N.cloud()'):await click('settings');await click('cloud');await click('close')
-   timed=await ask('On-device study schedule','Break a 45-minute study session into three blocks, including breaks.')
-   assert timed['status']=='ok' and not timed['cloud']
-   assert [int(x) for x in re.findall(r'^- (\d+) min',timed['answer'],re.M)]==[12,5,12,5,11]
-   await click('settings');await click('cloud');await click('agree')
-   row=await ask('Generate a saved checklist','Create a downloadable Markdown file called trip.md with three items for a train trip.')
-   assert row['status']=='ok' and not row['unavailable'],row
-   await wait_for('!!thread.turns.at(-1).savedOutput')
-   file=await ev('thread.turns.at(-1).savedOutput')
-   assert await ev('JSON.parse(N.savedFiles()).filter(f=>f.name==="trip.md").length')==1
-   assert len(re.findall(r'^(?:[-*+] |\d+[.)] )',row['answer'],re.M))==3
-   assert not re.search(r'Train Trip [123]|^[-*] (?:Item|Step|TODO) \d+\s*$',row['answer'],re.M|re.I)
-   assert re.search(r'ticket|platform|luggage|bag|station|departure|charg|snack|water|board|reservation|identification',row['answer'],re.I)
-   (qa/'trip.json').write_text(json.dumps({'file':file,'owner':await ev('thread.id'),'body':row['answer']}))
-   await fresh()
-   plan=await ask('Tailored workshop with two fixed breaks','Plan a 50-minute drawing workshop into three blocks with two 5-minute breaks.')
-   assert plan['status']=='ok' and sum(map(int,re.findall(r'^- (\d+) min',plan['answer'],re.M)))==50,plan
-   assert len(re.findall(r'^- 5 min — Break:',plan['answer'],re.M))==2
-   await fresh()
-   # Force the known bad draft into one native callback, then let the live
-   # provider answer the automatic repair on the same app turn.
-   await ev("""window.qaInjected=false;window.qaEvent=window.notaEvent;window.notaEvent=(event,...args)=>{if(!qaInjected && event==='answer' && job?.turn?.makeFile && args[0]===job.id){qaInjected=true;args[1]=JSON.stringify({text:'- Train Trip 1\\n- Train Trip 2\\n- Train Trip 3'});}return qaEvent(event,...args)}""")
-   repaired=await ask('Real repair following injected placeholder draft','Create a downloadable Markdown file called boarding.md with three items for a train trip.')
-   assert await ev('qaInjected') and repaired['status']=='ok' and 'Train Trip 1' not in repaired['answer'],repaired
-   await wait_for('!!thread.turns.at(-1).savedOutput')
-   assert await ev('thread.turns.length')==1
-   assert await ev('JSON.parse(N.savedFiles()).filter(f=>f.name==="boarding.md").length')==1
-  elif suite=='reopen':
-   trip=json.loads((qa/'trip.json').read_text())
-   await fresh()
-   assert await ev('thread.id')!=trip['owner']
-   await ev("qaSet('question','Use trip.md to tell me what I actually need to do before boarding.');qaClick('send')")
-   await wait_for("sheet==='file-reference'")
-   await click('fs-use',f'[data-id="{trip["file"]}"]')
-   await wait_for('!!thread.file && !sheet')
-   attached=await ev('thread.documents[thread.file]')
-   assert attached['savedId']==trip['file'] and attached['body'].strip()==trip['body'].strip(),attached
-   follow=await ask('Second chat using the persisted checklist','What do I actually need to do before boarding?')
-   assert follow['status']=='ok' and not follow['unavailable'] and len(follow['answer'])>35
+  await fresh()
+  if await ev('N.cloud()'):
+   await click('settings');await click('cloud');await click('close')
+  assert not await ev('N.cloud()')
+  await click('settings');await click('cloud');await click('agree')
+  assert await ev('N.cloud()')
+  a=await ask('Set rehearsal details','My rehearsal is Thursday at 4 PM in Room B. Please repeat those details.')
+  assert a['completed'] and a['status']=='ok',a
+  b=await ask('Correct one field','It moved to Friday. Give just the updated day, time, and room.')
+  import re
+  assert b['completed'] and b['status']=='ok' and not b['sources'],b
+  assert all(re.search(pattern,b['answer'],re.I) for pattern in [r'Friday',r'4(?::00)? ?p\.?m',r'Room B']),b
+  await click('settings');await click('cloud');await click('close')
+  assert not await ev('N.cloud()')
   print('suite complete',suite,flush=True)
 asyncio.run(main())

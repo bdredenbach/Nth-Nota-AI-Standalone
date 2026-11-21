@@ -1,0 +1,78 @@
+name: Shared Nota client checks
+on:
+  push:
+    branches: [qa/shared-worker-533]
+permissions:
+  contents: read
+jobs:
+  check:
+    name: ${{ matrix.client }} · API ${{ matrix.api }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [36, 37]
+        client: [standalone, 3d, ten, eleven]
+        include:
+          - client: 3d
+            repository: bdredenbach/Nth-Desktop-3D
+            ref: 0884c29dce47baf90b1a25ec599389c512dc7863
+          - client: ten
+            repository: bdredenbach/Windows-Ten-Style-Android-Launcher
+            ref: 8830d21be391dda6064ad78bbb51a52f28301972
+          - client: eleven
+            repository: bdredenbach/Windows-Eleven-Style-Android-Launcher
+            ref: ef9f9c8067943b30ab9a51cac907e45ae66904b5
+    env:
+      API_LEVEL: ${{ matrix.api }}
+      EDITION: ${{ matrix.client }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        if: matrix.client != 'standalone'
+        with:
+          repository: ${{ matrix.repository }}
+          ref: ${{ matrix.ref }}
+          path: client
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Allow emulator acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Build Standalone
+        if: matrix.client == 'standalone'
+        run: |
+          python3 -m venv /tmp/nota-qa
+          /tmp/nota-qa/bin/pip install websockets==15.0.1
+          echo /tmp/nota-qa/bin >> "$GITHUB_PATH"
+          sed -i "s/applicationId 'com.nth.notaai'/applicationId 'com.nth.notaai.preview'/" app/build.gradle
+          bash gradlew --no-daemon :app:assembleDebug
+      - name: Build launcher and instrumented tests
+        if: matrix.client != 'standalone'
+        working-directory: client
+        run: |
+          tasks=(:app:assembleDebug :app:assembleDebugAndroidTest)
+          if [ -d fixture ]; then tasks+=(:fixture:assembleDebug); fi
+          bash gradlew --no-daemon "${tasks[@]}"
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api }}
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          script: bash ${{ matrix.client == 'standalone' && 'tools/regression16/device.sh' || 'tools/regression16/launchers.sh' }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ${{ matrix.client }}-api-${{ matrix.api }}-results
+          path: regression-evidence/
+          if-no-files-found: ignore
+          retention-days: 7
