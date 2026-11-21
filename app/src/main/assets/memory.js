@@ -24,8 +24,10 @@ const MemoryModel = (() => {
   const head=new RegExp('^(?:(?:this|that)\\s+)?'+scopePattern+'\\b[\\s,:–—-]*','i');
   const tail=new RegExp('(?:,?\\s+)'+scopePattern+'[.!?]*$','i');
   const scopeOf=s=>s?.toLowerCase()==='project'?'project':s?'chat':'';
-  if(/^(?:what do you remember|(?:list|show)(?: me)? (?:my |our |the |saved )?memories)\b/i.test(q)){
-   const rest=q.replace(/^(?:what do you remember|(?:list|show)(?: me)? (?:my |our |the |saved )?memories)\b/i,'').trim();
+  const recall=/^(?:what do you remember|do you remember|(?:list|show)(?: me)? (?:all )?(?:my |our |the )?(?:saved )?memories)\b/i;
+  const question=/^remember\s+(?=(?:what|which|where|who|whose|when|why|how|whether)\b)/i;
+  if(recall.test(q)||question.test(q)){
+   const rest=q.replace(recall,'').replace(question,'').trim();
    const scope=rest.match(new RegExp('^(?:(?:about|in|for|across) )?(?:this |the |our |my )?(chat|project|conversation)(?: memor(?:y|ies))?[?.!]*$','i'));
    return {op:'list',scope:scopeOf(scope?.[1]),query:scope?'':rest.replace(/^about\s+/i,'').replace(/[?.!]+$/,'')};
   }

@@ -11,16 +11,17 @@ function phoneIntent(question, previous) {
  if(/^(?:what|which) (?:location|area|city|town|place|zip(?: code)?) (?:did you use (?:to get|for) forecast|was used for forecast|did forecast use|(?:was|is) forecast (?:for|based on))$/i.test(forecastQuestion)||
     /^(?:where (?:was|is) forecast for|where did you get forecast for|what(?:'s| is) the location (?:of|for) forecast)$/i.test(forecastQuestion))return {type:'forecastArea'};
  if(previous?.weatherData&&/^(?:(?:what|which) (?:location|area|city|place|zip(?: code)?) (?:did you use|was that(?: for)?)|where was that(?: for)?)$/i.test(placeQuestion))return {type:'forecastArea'};
- if(/^(?:how much (?:battery|charge) (?:do i have|is) left|how much battery (?:do i have|is left)|is my phone charging)$/i.test(q))return {type:'battery'};
- if(/^(?:what (?:phone|device) (?:am i using|do i have|is this)|what (?:android version|version of android) (?:am i (?:using|running)|is this|do i have)|show (?:my )?phone info)$/i.test(q))return {type:'device'};
- if(/^(?:how much (?:free )?(?:storage|space) (?:do i have(?: left)?|is (?:free|left|available))(?: on my phone)?|show (?:my )?(?:free |available )?storage)$/i.test(q))return {type:'storage'};
+ if(/^(?:how much (?:battery|charge) (?:do i have|is) left|how much battery (?:do i have|is left)|is (?:my|this) (?:phone|device) charging|am i charging)$/i.test(q))return {type:'battery'};
+ if(/^(?:what(?:'s| is) (?:my|this phone(?:'s)?|my phone(?:'s)?) android version|what (?:phone|device) (?:am i using|do i have|is this)|what (?:android version|version of android) (?:am i (?:using|running)|is this|do i have)|show (?:my )?phone info)$/i.test(q))return {type:'device'};
+ if(/^(?:how much (?:free )?(?:storage(?: space)?|space) (?:do i have(?: left)?|is (?:free|left|available))(?: on my phone)?|show (?:my )?(?:free |available )?storage)$/i.test(q))return {type:'storage'};
  if(/^(?:(?:tell|show|give) me |check )?(?:(?:what(?:'s| is)|how(?:'s| is)) )?(?:my |the |my phone(?:'s)? |this phone(?:'s)? )?(?:battery(?: level| percentage| percent| status)?)(?: (?:right now|at|on my phone))?$/i.test(q))return {type:'battery'};
+ if(/^(?:(?:what(?:'s| is| was)|which (?:is|was)) (?:the |my )?last app i (?:opened|used)|(?:which|what) app did i (?:open|use) last)$/i.test(q))return {type:'recent',latest:true};
  if(/^(?:(?:show(?: me)?|tell me|list) |what (?:were|are) |which )?(?:my |the )?(?:recent(?:ly (?:opened|used))? apps|apps (?:i(?:'ve| have)? (?:recently |last )?(?:opened|used)(?: recently)?|used recently))(?: on (?:my|this) phone)?$/i.test(q) || /^(?:(?:which|what) (?:apps? (?:did|have) i (?:use|open)(?:d)? (?:recently|last)|(?:was )?the last app i (?:opened|used)))$/i.test(q))return {type:'recent'};
  let match=q.match(/^(?:open|launch|start|take me to) (.{1,70})$/i);
  if(match&&!/[;\n]/.test(match[1])&&!/\b(?:and then|and tell|and open|then|https?)\b/i.test(match[1])){
   const name=match[1].replace(/^(?:the |my )/i,'').replace(/ app$/i,'').trim();
   const key=name.toLowerCase().replace(/[- ]/g,'');
-  const settings={settings:'phone',phonesettings:'phone',androidsettings:'phone',wifisettings:'wifi',wifi:'wifi',bluetoothsettings:'bluetooth',bluetooth:'bluetooth',locationsettings:'location',displaysettings:'display',batterysettings:'battery',soundsettings:'sound',notificationsettings:'notifications'};
+  const settings={settings:'phone',phonesettings:'phone',androidsettings:'phone',wifisettings:'wifi',wifi:'wifi',bluetoothsettings:'bluetooth',bluetooth:'bluetooth',accessibilitysettings:'accessibility',storagesettings:'storage',appsettings:'apps',locationsettings:'location',displaysettings:'display',batterysettings:'battery',batterysaversettings:'saver',soundsettings:'sound',notificationsettings:'notifications'};
   return settings[key]?{type:'setting',value:settings[key]}:{type:'app',value:name};
  }
  if(previous&&previous.wx && /^(?:(?:and|how about|what about) )?(tomorrow|today|right now)(?: then)?$/i.test(q))

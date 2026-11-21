@@ -92,3 +92,14 @@ test('a prompt naming project decisions only receives current project notes, inc
  const imagePayload={route:'chat',messages:[]};env.api.prepare(imagePayload,imageTurn,[],null);
  assert.deepEqual(imagePayload.messages,[]);
 });
+
+test('natural recall questions never create a memory',()=>{
+ const {env,a}=runtime();
+ env.api.command('Remember that my sketchbook is teal.');
+ for(const text of ['Can you remember what color my sketchbook is?','Do you remember my sketchbook?','Show me all my memories']){
+  assert.match(env.api.command(text).say,/teal/);
+  assert.equal(a.memories.length,1);
+ }
+ assert.match(env.api.command('Can you remember what my iguana is called?').say,/don’t have a saved memory/);
+ assert.equal(a.memories.length,1);
+});

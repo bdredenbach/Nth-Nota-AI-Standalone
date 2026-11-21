@@ -40,3 +40,12 @@ test('forecast area comes from the selected exchange, including legacy replies',
  assert.match(reply({reply:'The forecast for Toronto is -4°C with snow.'}),/Toronto/);
  assert.match(reply({reply:'An older format without a label.'}),/wasn’t saved/);
 });
+
+test('conversational variants select the same Android data and settings',()=>{
+ for(const [q,intent] of [
+  ["What's my Android version?",{type:'device'}],['Am I charging?',{type:'battery'}],
+  ['How much storage space do I have left?',{type:'storage'}],['What is the last app I opened?',{type:'recent',latest:true}],
+  ['Open accessibility settings',{type:'setting',value:'accessibility'}],['Open battery saver settings',{type:'setting',value:'saver'}]
+ ])assert.deepEqual(route(q),intent);
+ assert.equal(route('How do I check which version of Android I am running?'),null);
+});
