@@ -4,7 +4,7 @@ A standalone Android assistant with two work surfaces. Chat holds a conversation
 
 Basic study-block plans are calculated on the phone. For other supported minute-based schedules Nota checks the intervals against the requested budget. Generated Markdown checklists are checked for count, duplicates and placeholders before they appear in Files. A failed check can trigger one rewrite.
 
-Version 0.12.2 is a debug-signed testing build. Application ID `com.nth.notaai`. Minimum Android 8.0, target Android 16 / API 36. It can be installed alongside the Nth Nota notes app and the Nth Desktop launchers.
+The regular 0.12.2 release uses the R1 signing key. Application ID `com.nth.notaai`. Minimum Android 8.0, target Android 16 / API 36. It can be installed alongside the Nth Nota notes app and the Nth Desktop launchers.
 
 ## Organizing chats and Desk cards
 
@@ -86,7 +86,9 @@ The APK contains the full Kokoro-82M LiteRT CPU model compressed in its assets. 
 
 Open the project root in Android Studio. Install the Android SDK Platform 36 and use a JDK with Java 17 or later. The wrapper pins Gradle 8.13. On macOS or Linux run `./gradlew :app:assembleDebug :app:lintDebug`. On Windows run `.\gradlew.bat :app:assembleDebug :app:lintDebug`. The build produces `app/build/outputs/apk/debug/app-debug.apk`. Run the JavaScript checks with `node --test`. The first build downloads the pinned 295 MB Kokoro model from Hugging Face. Gradle caches the weights, verifies their SHA-256, and packages the voice inside the APK. Subsequent builds can use Gradle’s offline mode once all dependencies are cached.
 
-Android Studio signs local debug builds with its own debug key. Updates over a previous install require the same signing certificate.
+For a release, run the **Standalone unsigned release** workflow in GitHub Actions. It builds the regular package, checks the package ID and alignment, and supplies the unsigned APK, checksums and Android signing tool. Sign the APK locally with the owner's R1 keystore. Verify it with `apksigner verify --verbose --print-certs`. The R1 certificate SHA-256 is `a0a712e8b24147d4c15d9df49819be0381222338a4755e834c18e75e4d2156ba`.
+
+Android Studio uses a separate key for local debug builds. Moving from the original debug-signed standalone app to the R1 release requires a one-time uninstall, which clears the old app's local data. Future R1 updates use the same package and signer. The separately packaged Preview app can stay installed.
 
 ## Implementation
 
