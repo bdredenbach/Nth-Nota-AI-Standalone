@@ -1,0 +1,57 @@
+name: Android 16 conversation regression
+on:
+  push:
+    branches:
+      - 'qa/android16-conversations-*'
+permissions:
+  contents: read
+jobs:
+  exercise:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - name: Prepare runner
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          python3 -m venv /tmp/nota-regression
+          /tmp/nota-regression/bin/pip install websockets==15.0.1
+          echo /tmp/nota-regression/bin >> "$GITHUB_PATH"
+      - name: Run app regressions
+        run: node --test tests/*.test.cjs
+      - name: Build isolated test APK
+        run: |
+          sed -i "s/applicationId 'com.nth.notaai'/applicationId 'com.nth.notaai.preview'/" app/build.gradle
+          sed -i 's/android:label="Nth Nota AI"/android:label="Nth Nota AI Preview"/' app/src/main/AndroidManifest.xml
+          ./gradlew --no-daemon :app:assembleDebug
+          cp app/build/outputs/apk/debug/app-debug.apk Nth-Nota-AI-0.12.2-Preview.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nth-nota-0.12.2-preview
+          path: Nth-Nota-AI-0.12.2-Preview.apk
+          retention-days: 14
+          compression-level: 0
+      - name: Ask Nota on API 36
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 36
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -no-snapshot
+          script: bash tools/regression16/device.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-16-conversation-results
+          path: regression-evidence/
+          retention-days: 7
