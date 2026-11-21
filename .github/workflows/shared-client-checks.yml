@@ -15,12 +15,6 @@ jobs:
         api: [36, 37]
         client: [eleven]
         include:
-          - client: 3d
-            repository: bdredenbach/Nth-Desktop-3D
-            ref: 0884c29dce47baf90b1a25ec599389c512dc7863
-          - client: ten
-            repository: bdredenbach/Windows-Ten-Style-Android-Launcher
-            ref: 8830d21be391dda6064ad78bbb51a52f28301972
           - client: eleven
             repository: bdredenbach/Windows-Eleven-Style-Android-Launcher
             ref: ef9f9c8067943b30ab9a51cac907e45ae66904b5
