@@ -26,9 +26,12 @@ final class PhoneHelp {
     private final LocationManager locations;
     private static final Map<String,String> pages=new LinkedHashMap<>();
     static {
+        pages.put("home",Settings.ACTION_HOME_SETTINGS);
         pages.put("phone",Settings.ACTION_SETTINGS); pages.put("wifi",Settings.ACTION_WIFI_SETTINGS);
         pages.put("bluetooth",Settings.ACTION_BLUETOOTH_SETTINGS);pages.put("location",Settings.ACTION_LOCATION_SOURCE_SETTINGS);
-        pages.put("display",Settings.ACTION_DISPLAY_SETTINGS);pages.put("battery",Settings.ACTION_BATTERY_SAVER_SETTINGS);
+        pages.put("display",Settings.ACTION_DISPLAY_SETTINGS);pages.put("battery",Intent.ACTION_POWER_USAGE_SUMMARY);
+        pages.put("saver",Settings.ACTION_BATTERY_SAVER_SETTINGS);pages.put("accessibility",Settings.ACTION_ACCESSIBILITY_SETTINGS);
+        pages.put("storage",Settings.ACTION_INTERNAL_STORAGE_SETTINGS);pages.put("apps",Settings.ACTION_APPLICATION_SETTINGS);
         pages.put("sound",Settings.ACTION_SOUND_SETTINGS);pages.put("notifications","android.settings.NOTIFICATION_SETTINGS");
     }
 
@@ -107,19 +110,19 @@ final class PhoneHelp {
             }
             case "battery":{
                 BatteryManager b=activity.getSystemService(BatteryManager.class);int percent=b==null?-1:b.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY);
-                return reply(percent<0||percent>100?"Android couldn’t report the battery level.":"Your battery is at "+percent+"%"+(b.isCharging()?" and charging.":"."));
+                return reply(percent<0||percent>100?"Android couldn’t report the battery level.":"Your battery is at "+percent+"%"+(b.isCharging()?" and charging.":" and isn’t charging."));
             }
             case "setting":{
                 if(!pages.containsKey(val))return reply("That settings page is unavailable.");
                 String label=("phone".equals(val)?"Phone":val.equals("wifi")?"Wi-Fi":val.substring(0,1).toUpperCase(Locale.ROOT)+val.substring(1))+" settings";
                 return reply("Tap below to open "+label+".").put("actions",new JSONArray().put(action("setting",val,label)));
             }
-            case "app":return apps(val,false);
-            case "recent":return apps("",true);
+            case "app":return apps(val,false,false);
+            case "recent":return apps("",true,call.optBoolean("latest"));
             default:throw new IllegalArgumentException("Unknown phone request");
         }
     }
-    private JSONObject apps(String name,boolean recent)throws Exception{
+    private JSONObject apps(String name,boolean recent,boolean latest)throws Exception{
         if(recent&&!hasUsage())return setup("Turn on Usage Access to see apps you opened recently. This list stays on your phone.","usage");
         Intent list=new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER);
         List<ResolveInfo> all=pm.queryIntentActivities(list,0);
@@ -146,13 +149,13 @@ final class PhoneHelp {
             boolean same=label.equalsIgnoreCase(name);
             if(!recent&&!same&&(target.isEmpty()||!label.toLowerCase(Locale.ROOT).contains(target)))continue;
             JSONArray dest=same?exact:possible;
-            if(dest.length()<8)dest.put(action("app",new ComponentName(ai.packageName,ai.name).flattenToString(),label));
+            if(dest.length()<(latest?1:8))dest.put(action("app",new ComponentName(ai.packageName,ai.name).flattenToString(),label));
         }
         JSONArray items=exact.length()>0?exact:possible;
         String text;
         if(recent){
             List<String> names=new ArrayList<>();for(int i=0;i<items.length();i++)names.add(items.getJSONObject(i).getString("label"));
-            text=names.isEmpty()?"No recently opened apps were reported for this profile in the past 24 hours.":"Your recent apps, newest first: "+String.join(", ",names)+".";
+            text=names.isEmpty()?"No recently opened apps were reported for this profile in the past 24 hours." : latest?"Your most recently opened app is "+names.get(0)+".":"Your recent apps, newest first: "+String.join(", ",names)+".";
         }else text=items.length()==0?"I couldn’t find a launchable app named "+name+" in this phone profile.":items.length()==1?"Tap below to open "+items.getJSONObject(0).getString("label")+".":"I found several matches. Choose the app you want.";
         return reply(text).put("actions",items);
     }

@@ -66,7 +66,7 @@ final class Gateway {
             http.setRequestProperty("Content-Type", "application/json");
             http.setRequestProperty("Accept", "application/json");
             http.setRequestProperty("Origin", "https://appassets.androidplatform.net");
-            http.setRequestProperty("User-Agent", "NthNotaAI/0.12.0 (Android)");
+            http.setRequestProperty("User-Agent", "NthNotaAI/0.12.1 (Android)");
             http.setFixedLengthStreamingMode(bytes.length);
             try (OutputStream out = http.getOutputStream()) {
                 if (canceled) throw new IOException("Stopped.");
@@ -75,6 +75,9 @@ final class Gateway {
             int status = http.getResponseCode();
             if (status < 200 || status >= 300) {
                 if (status == 429) throw new IOException("The free service has reached a usage limit. Try again later.");
+                if (status == 503 || status == 502 || status == 504) {
+                    throw new IOException("The free AI service is temporarily unavailable. Your question is still here. Tap Retry to try again.");
+                }
                 if (status == 400 || status == 413) throw new IOException("The service could not accept this request. Shorten it and try again.");
                 throw new IOException("The service returned HTTP " + status + ". You can retry this question.");
             }

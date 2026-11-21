@@ -24,8 +24,16 @@ const MemoryModel = (() => {
   const head=new RegExp('^(?:(?:this|that)\\s+)?'+scopePattern+'\\b[\\s,:–—-]*','i');
   const tail=new RegExp('(?:,?\\s+)'+scopePattern+'[.!?]*$','i');
   const scopeOf=s=>s?.toLowerCase()==='project'?'project':s?'chat':'';
-  if(/^(?:what do you remember|(?:list|show)(?: me)? (?:my |our |the |saved )?memories)\b/i.test(q)){
-   const rest=q.replace(/^(?:what do you remember|(?:list|show)(?: me)? (?:my |our |the |saved )?memories)\b/i,'').trim();
+  // A user can state a fact first, then explicitly ask to keep it in this chat or project.
+  const trailing=q.match(new RegExp('^([\\s\\S]+?[.!?])\\s+(?:please )?remember (this|that|it|(?:the|my|our) [^.!?]{1,64}?)\\s+'+scopePattern+'[.!?]*$','i'));
+  if(trailing){
+   const name=/^(?:this|that|it)$/i.test(trailing[2])?'':trailing[2].replace(/^(?:the|my|our) (?:new )?/i,'');
+   return {op:'save',scope:scopeOf(trailing[3]),text:trailing[1].trim(),topic:name};
+  }
+  const recall=/^(?:what do you remember|do you remember|(?:list|show)(?: me)? (?:all )?(?:my |our |the )?(?:saved )?memories)\b/i;
+  const question=/^remember\s+(?=(?:what|which|where|who|whose|when|why|how|whether)\b)/i;
+  if(recall.test(q)||question.test(q)){
+   const rest=q.replace(recall,'').replace(question,'').trim();
    const scope=rest.match(new RegExp('^(?:(?:about|in|for|across) )?(?:this |the |our |my )?(chat|project|conversation)(?: memor(?:y|ies))?[?.!]*$','i'));
    return {op:'list',scope:scopeOf(scope?.[1]),query:scope?'':rest.replace(/^about\s+/i,'').replace(/[?.!]+$/,'')};
   }
@@ -54,6 +62,19 @@ const MemoryModel = (() => {
    for(const term of terms)score+=topic.has(term)?3:content.has(term)?1:0;
    return {row,score};
   }).filter(hit=>hit.score).sort((a,b)=>b.score-a.score||b.row.updated-a.row.updated);
+ }
+ // A remembered decision can be quoted directly when the question identifies its topic.
+ function decisionNotes(rows,value){
+  const q=value.toLowerCase().trim().replace(/[?.!]+$/,'');
+  const decision=q.match(/^(?:which|what) (.+?) did (?:we|i) (?:pick|choose|select|decide on|settle on)$/)||
+   q.match(/^what did (?:we|i) (?:pick|choose|select|decide on|settle on) for (.+)$/);
+  if(!decision)return [];
+  const terms=words(decision[1]);
+  if(!terms.size)return [];
+  return rows.filter(row=>{
+   const topic=words(row.topic);
+   return [...terms].every(term=>topic.has(term));
+  });
  }
  const ref=row=>({id:row.id,revision:row.revision});
  function relevant(rows,query,prior=[]){
@@ -85,6 +106,6 @@ const MemoryModel = (() => {
   }
   return selected.map(ref);
  }
- return {limit,normalize,subject,command,rank,relevant,attach,ref};
+ return {limit,normalize,subject,command,rank,decisionNotes,relevant,attach,ref};
 })();
 if(typeof module!=='undefined')module.exports=MemoryModel;

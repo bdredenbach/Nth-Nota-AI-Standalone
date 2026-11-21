@@ -112,7 +112,7 @@ function showSettings(){
  '<label class="pace-label" for="voice-pace">Speaking pace <output id="pace-value" for="voice-pace">'+voiceRate()+'%</output></label>'+
  '<input type="range" id="voice-pace" aria-label="Speaking pace" min="75" max="110" step="5" value="'+voiceRate()+'" aria-valuetext="'+voiceRate()+' percent">'+
  '<button class="choice framed" data-action="preview-voice">'+icon('sound')+'<span id="voice-preview-label" aria-live="polite">Preview voice</span></button>'+
- '<h3>On this device</h3><p class="desc">Chats, drafts and Desk cards are stored here. Temporary chats stay in memory. Android handles microphone input through its speech service.</p><p class="version">Nth Nota AI · 0.12.0</p>','settings');
+ '<h3>On this device</h3><p class="desc">Chats, drafts and Desk cards are stored here. Temporary chats stay in memory. Android handles microphone input through its speech service.</p><p class="version">Nth Nota AI · 0.12.1</p>','settings');
 }
 function consentDialog(){
  modal('Allow cloud questions?','<p class="desc">Sending a message shares it and relevant saved memories and recent replies with Nth Nota’s Cloudflare and Groq service. Web questions can share search terms or requested links with research providers. Sending an attached file shares its text and file names. Photos have their own sharing choice.</p><p class="desc">You can turn this off in Settings. Your draft stays here until you press Send.</p>'+button('agree','Allow cloud questions','check','','primary')+button('close','Keep off',null,'','choice centered'),'consent');
@@ -240,7 +240,9 @@ function runTurn(t,prior,voice=null){
  if(t.image)N.askImage(job.id,JSON.stringify({id:t.image.id,mode:t.imageMode||'auto',question:t.question,session:voice?.id||'',token:voice?.token||'',history:ChatImages.history(t.image,prior)}));
  else if(intent){
   t.phone=true;
-  if(intent.type==='forecastArea'){
+  if(intent.type==='guide'){
+   window.notaEvent('phoneAnswer',job.id,JSON.stringify(phoneGuideReply(intent.value)));
+  }else if(intent.type==='forecastArea'){
    let forecast;
    for(let i=prior.length-1;i>=0;i--){const row=prior[i];if(row.phone&&row.weatherData&&row.status==='ok'&&!row.retired){forecast=row;break;}}
    window.notaEvent('phoneAnswer',job.id,JSON.stringify({text:forecastAreaReply(forecast)}));

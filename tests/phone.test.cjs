@@ -40,3 +40,29 @@ test('forecast area comes from the selected exchange, including legacy replies',
  assert.match(reply({reply:'The forecast for Toronto is -4°C with snow.'}),/Toronto/);
  assert.match(reply({reply:'An older format without a label.'}),/wasn’t saved/);
 });
+
+test('conversational variants select the same Android data and settings',()=>{
+ for(const [q,intent] of [
+  ["What's my Android version?",{type:'device'}],['Am I charging?',{type:'battery'}],
+  ['How much storage space do I have left?',{type:'storage'}],['What is the last app I opened?',{type:'recent',latest:true}],
+  ['Open accessibility settings',{type:'setting',value:'accessibility'}],['Open battery saver settings',{type:'setting',value:'saver'}]
+ ])assert.deepEqual(route(q),intent);
+ assert.equal(route('How do I check which version of Android I am running?'),null);
+});
+
+test('common Android guides answer locally with a source or an actionable setting',()=>{
+ for(const [q,key] of [
+  ['How do I use split screen with two apps on Android 16?','split'],
+  ['How do I take a screenshot on a Pixel?','screenshot'],
+  ['How do I see which apps can use my microphone?','microphone'],
+  ['How do I make a different app my default home launcher?','launcher'],
+  ['How do I find a file I downloaded yesterday?','downloads'],
+  ['Walk me through pairing Bluetooth headphones.','pair'],
+  ['Can you turn off my Wi-Fi without me tapping anything?','wifi-switch']
+ ]){
+  assert.deepEqual(route(q),{type:'guide',value:key});
+  const answer=route.phoneGuideReply(key);
+  assert.ok(answer.text);assert.ok(answer.sources.length||answer.actions.length);
+ }
+ for(const q of ['Why did my headphones disconnect?', 'How do I take a screenshot on an iPhone?', 'Turn off Wi-Fi and then open Clock'])assert.equal(route(q),null);
+});

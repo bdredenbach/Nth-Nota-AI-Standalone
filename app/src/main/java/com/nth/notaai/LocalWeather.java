@@ -22,7 +22,7 @@ final class LocalWeather {
             if (Thread.currentThread().isInterrupted()) throw new InterruptedException();
             HttpsURLConnection http=(HttpsURLConnection)new URL("https://api.met.no/weatherapi/locationforecast/2.0/compact?"+key).openConnection();
             try {
-                http.setRequestProperty("User-Agent","NthNotaAI/0.12.0 (https://github.com/bdredenbach)");
+                http.setRequestProperty("User-Agent","NthNotaAI/0.12.1 (https://github.com/bdredenbach)");
                 http.setRequestProperty("Accept","application/json");
                 http.setConnectTimeout(9000); http.setReadTimeout(12000);
                 if(http.getResponseCode()!=200)throw new IOException("Forecast service unavailable");

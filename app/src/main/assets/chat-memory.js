@@ -123,7 +123,14 @@ const ChatMemory=(()=>{
  }
  function command(q,voice=false){
   if(thread.rehearsal||thread.ramble)return null;
-  const cmd=model.command(q);if(!cmd)return null;
+  const cmd=model.command(q);
+  if(!cmd){
+   if(thread.temporary||thread.mode==='search'||thread.image||thread.file||thread.attachment)return null;
+   const matches=model.decisionNotes(rows(),q);
+   if(!matches.length)return null;
+   projectView='';
+   return finish(q,matches.length===1?'Here’s the saved decision.':'I found multiple saved notes for that decision.',matches,voice);
+  }
   projectView='';
   if(thread.temporary)return finish(q,'Memory is off in temporary chats.',[],voice);
   if(cmd.scope==='project'&&!group())return finish(q,'Move this chat into a project to use project memory.',[],voice);
@@ -136,7 +143,7 @@ const ChatMemory=(()=>{
    let index=thread.turns.length,content=cmd.text;
    if(!content){for(index=thread.turns.length-1;index>=0;index--){const t=thread.turns[index];if(!t.kind&&!t.retired&&t.status==='ok'&&t.reply){content=t.reply;break;}}}
    const source=index===thread.turns.length?{chat:thread.id,index,file:thread.documents?.[thread.file]?.savedId||thread.image?.shelfId||''}:origin(index);
-   const draft={scope:cmd.scope,text:content,topic:model.subject(content),origin:source,command:q,voice};
+   const draft={scope:cmd.scope,text:content,topic:cmd.topic||model.subject(content),origin:source,command:q,voice};
    if(!content||content.length>model.limit){draft.text=content.slice(0,model.limit);editor(draft,'Choose the detail you want to keep.');return {};}
    const result=save(draft);
    if(result.conflict){conflictSheet(draft,result.conflict);return {};}

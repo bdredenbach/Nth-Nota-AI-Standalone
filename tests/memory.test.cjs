@@ -92,3 +92,42 @@ test('a prompt naming project decisions only receives current project notes, inc
  const imagePayload={route:'chat',messages:[]};env.api.prepare(imagePayload,imageTurn,[],null);
  assert.deepEqual(imagePayload.messages,[]);
 });
+
+test('natural recall questions never create a memory',()=>{
+ const {env,a}=runtime();
+ env.api.command('Remember that my sketchbook is teal.');
+ for(const text of ['Can you remember what color my sketchbook is?','Do you remember my sketchbook?','Show me all my memories']){
+  assert.match(env.api.command(text).say,/teal/);
+  assert.equal(a.memories.length,1);
+ }
+ assert.match(env.api.command('Can you remember what my iguana is called?').say,/don’t have a saved memory/);
+ assert.equal(a.memories.length,1);
+});
+
+test('a question about a saved choice quotes only matching visible topics',()=>{
+ const {env,a,b,c,d}=runtime();
+ env.api.command('Remember that the launch room is Indigo Hall for this project.');
+ env.api.command('Remember that my launch code is lilac.');
+ env.thread=b;
+ assert.match(env.api.command('Which launch room did we pick?').say,/Indigo Hall/);
+ assert.match(env.api.command('What did we settle on for the launch room?').say,/Indigo Hall/);
+ for(const q of ['Which launch code did we pick?', 'Which launch room should we pick?', 'Which launch room budget did we pick?'])assert.equal(env.api.command(q),null);
+ for(const key of ['file','image','attachment']){b[key]='attached';assert.equal(env.api.command('Which launch room did we pick?'),null);delete b[key];}
+ b.mode='search';assert.equal(env.api.command('Which launch room did we pick?'),null);
+ for(const owner of [c,d]){env.thread=owner;assert.equal(env.api.command('Which launch room did we pick?'),null);}
+ env.thread=a;env.api.command('Remember that the launch room is Olive Hall.');
+ const choices=env.api.command('Which launch room did we pick?').say;
+ assert.match(choices,/Indigo Hall/);assert.match(choices,/Olive Hall/);
+});
+
+test('a scoped request at the end of a message saves the fact and can answer a follow-up',()=>{
+ const {env,a,b,ask}=runtime();
+ const q='I said 8 guests earlier. Now there are 12. Remember the new headcount for this conversation.';
+ assert.match(env.api.command(q).say,/Saved to this chat/);
+ assert.equal(a.memories[0].topic,'headcount');
+ assert.equal(a.memories[0].text,'I said 8 guests earlier. Now there are 12.');
+ const follow='How many guests did I just say were coming?';
+ assert.match(ask(follow).raw,/Now there are 12/);
+ env.thread=b;assert.doesNotMatch(ask(follow).raw,/Now there are 12/);
+ assert.equal(env.api.command('I said 8 guests earlier. Do you remember the new headcount for this conversation?'),null);
+});
