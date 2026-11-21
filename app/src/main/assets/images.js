@@ -10,7 +10,7 @@ const ChatImages = (() => {
   closeSheet();
   if (!thread.temporary) {threads.set(thread.id,thread);saveThread();}
   if(action==='camera') N.takePhoto(thread.id,thread.temporary);
-  else if(action==='pick-file') N.pickChatFile(thread.id);
+  else if(action==='pick-file') N.pickChatFile(thread.id,thread.temporary);
   else N.pickImage(thread.id,thread.temporary);
  }
  function removeUnused(images) {
@@ -39,7 +39,7 @@ const ChatImages = (() => {
  function preview(index) {
   const past=Number.isInteger(index),image=past?thread.turns[index]?.image:thread.image;
   if (!valid(image)) return;
-  modal('Photo',photo(image,'image-preview')+(past?button('reuse-image','Ask about this photo','chat','data-i="'+index+'"','primary'):''),'image-preview');
+  modal('Photo',photo(image,'image-preview')+(image.shelfId?button('fs-detail','Open in Files','folder','data-id="'+M.esc(image.shelfId)+'"'):'')+(past?button('reuse-image','Ask about this photo','chat','data-i="'+index+'"','primary'):''),'image-preview');
  }
  function mode(selection) {
   if(selection==='text')return 'text';

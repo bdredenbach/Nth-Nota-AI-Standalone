@@ -2,13 +2,23 @@
 
 A standalone Android assistant with two work surfaces. Chat holds a conversation. Desk holds editable notes, drafts and checklists that can outlive that conversation. A saved card carries its source links and opens the original thread while that thread exists. **Ask about this card** sends edits back through a new, reviewable draft.
 
-Version 0.9.0 is a debug-signed testing build. Application ID `com.nth.notaai`. Minimum Android 8.0, target Android 16 / API 36. It can be installed alongside the Nth Nota notes app and the Nth Desktop launchers.
+Version 0.10.0 is a debug-signed testing build. Application ID `com.nth.notaai`. Minimum Android 8.0, target Android 16 / API 36. It can be installed alongside the Nth Nota notes app and the Nth Desktop launchers.
 
 ## Organizing chats and Desk cards
 
 Open the menu at the top left to search saved chats, Desk cards and project names. Search runs on the device and includes chat messages, card text and attachment names. Pinned items appear above recent chats. Use the options beside an item to pin, rename or move it.
 
 Open **Projects** to create a project. Inside it, use **New chat** or **Add existing**. Cards saved from a project chat and branches from that chat start in the same project. Each item can be moved individually. Removing a project keeps its contents in All chats and Desk. Temporary conversations stay outside search and projects. Project membership does not add other chats to a model request.
+
+## Files and versions
+
+Open **Menu → Files** for reusable uploads, replies saved as files and Markdown exports. A private on-device SQLite database stores metadata and original document bytes together. Photos keep Nota’s resized, metadata-free JPEG. Files stay available after closing or deleting their source chat. Temporary uploads stay in their temporary chat. Saving a reply from a temporary chat creates a lasting copy by explicit choice. Removing a saved file deletes its version history, while previous chat excerpts and downloaded copies remain.
+
+Upload a ZIP containing a Markdown file and ask to revise it, or choose **Revise with Nota** on its file page. Select the member if several are eligible. Review the replacement text and tap **Save new version**. Nota writes a new ZIP containing the edited text and the other original members. The earlier version stays available. Text revision supports complete UTF-8 entries up to 12,000 characters. Downloads include the selected version’s full bytes.
+
+To compare, select a version, tap **Compare files or versions**, choose the other version and attach the comparison in this chat or a new one. **Compare with a saved chat** uses the chosen file preview and excerpts from up to five recent completed exchanges. Nothing is sent until you send the question. You can also mention an exact filename in a question, such as “Compare v1 and v2 of plan.zip.” Explicit requests for a downloadable Markdown file produce a reusable document. Other replies can be saved from their action menu. Re-exporting a changed Desk card or chat creates another version of that export.
+
+On upgrade, opening Files imports earlier regular-chat photos that are still present and the text previews that older builds retained. These older document copies are labeled with the suffix .preview.md.
 
 ## Chat attachments
 

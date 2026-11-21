@@ -25,6 +25,9 @@ public final class MainActivity extends Activity {
     private final ExecutorService network = Executors.newCachedThreadPool();
     private final ExecutorService files = Executors.newSingleThreadExecutor();
     private ChatImages images;
+    private FileShelf shelf;
+    private String exportVersion="";
+    private boolean fileTemporary;
     private Uri sharedImage;
     private String imageTarget = "";
     private boolean imageTemporary;
@@ -36,7 +39,7 @@ public final class MainActivity extends Activity {
     private FrameLayout frame;
     private SharedPreferences store;
     private Gateway pending;
-    private String pendingId = "", importTarget = "", exportText, incoming;
+    private String pendingId = "", importTarget = "", incoming;
     private SpeechOutput output;
     private PhoneHelp phone;
     private java.util.concurrent.Future<?> phoneTask;
@@ -49,11 +52,14 @@ public final class MainActivity extends Activity {
         super.onCreate(state);
         store = getSharedPreferences("notebook", MODE_PRIVATE);
         images = new ChatImages(this);
+        shelf = new FileShelf(this);
         files.execute(() -> images.cleanUnreferenced(store.getAll().values()));
         if (state != null) {
             imageTarget = state.getString("imageTarget","");
             imageTemporary = state.getBoolean("imageTemporary");
             fileTarget = state.getString("fileTarget", "");
+            fileTemporary = state.getBoolean("fileTemporary");
+            exportVersion=state.getString("exportVersion","");
             String cameraName = state.getString("cameraName", "");
             if (cameraName.matches("photo-[a-zA-Z0-9_-]+\\.jpg")) cameraFile = new File(new File(getCacheDir(), "camera"), cameraName);
             deferredPick = state.getParcelable("deferredPick");
@@ -155,7 +161,7 @@ public final class MainActivity extends Activity {
         if (deferredFile != null) {
             Uri selected = deferredFile;
             deferredFile = null;
-            loadChatFile(selected, fileTarget);
+            loadChatFile(selected, fileTarget,fileTemporary);
         }
         if (sharedImage != null) emit("sharedImage");
         if (incoming == null) return;
@@ -257,10 +263,51 @@ public final class MainActivity extends Activity {
             if (!"https".equals(uri.getScheme()) || uri.getHost() == null || uri.getUserInfo() != null || (uri.getPort() != -1 && uri.getPort() != 443)) return;
             runOnUiThread(() -> start(new Intent(Intent.ACTION_VIEW, uri), -1));
         }
-        @JavascriptInterface public void exportFile(String name, String text) { runOnUiThread(() -> {
-            exportText = text;
-            start(new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("text/markdown").putExtra(Intent.EXTRA_TITLE, name + ".md"), EXPORT);
-        }); }
+        @JavascriptInterface public String savedFiles() {
+            try{return shelf.list().toString();}
+            catch(Exception e){return new JSONObject().toString();}
+        }
+        @JavascriptInterface public void fileWork(String token,String action,String raw) {
+            files.execute(()->{
+                try{
+                    JSONObject args=new JSONObject(raw);
+                    JSONObject result;
+                    if(action.equals("legacyPhoto")){
+                        String id=args.getString("key");
+                        result=shelf.oldPhoto(id,images.bytes(id),args.getString("origin"));
+                    }else if(action.equals("photo")){
+                        String id=args.getString("id");
+                        JSONObject meta=shelf.info(id);
+                        if(!meta.getString("kind").equals("photo"))throw new IOException("Choose a saved photo.");
+                        ByteArrayOutputStream data=new ByteArrayOutputStream();
+                        shelf.writeTo(id,data);
+                        byte[] bytes=data.toByteArray();
+                        android.graphics.BitmapFactory.Options sizes=new android.graphics.BitmapFactory.Options();
+                        sizes.inJustDecodeBounds=true;
+                        android.graphics.BitmapFactory.decodeByteArray(bytes,0,bytes.length,sizes);
+                        result=images.saveJpeg(bytes,args.optBoolean("temporary"),sizes.outWidth,sizes.outHeight).put("shelfId",id);
+                    }else result=shelf.operate(action,args);
+                    String payload=result.toString();
+                    runOnUiThread(()->emit("shelfResult",token,"ok",payload));
+                }catch(Exception e){
+                    String message=e instanceof IOException&&e.getMessage()!=null?e.getMessage():"Couldn’t complete the file operation. Check available storage and try again.";
+                    runOnUiThread(()->emit("shelfResult",token,"error",message));
+                }
+            });
+        }
+        @JavascriptInterface public void downloadVersion(String id){
+            files.execute(()->{
+                try{
+                    JSONObject meta=shelf.info(id);
+                    String kind=meta.getString("kind"),name=meta.getString("name");
+                    String mime=kind.equals("photo")?"image/jpeg":kind.equals("zip")?"application/zip":name.endsWith(".md")?"text/markdown":"text/plain";
+                    runOnUiThread(()->{
+                        exportVersion=id;
+                        start(new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType(mime).putExtra(Intent.EXTRA_TITLE,name),EXPORT);
+                    });
+                }catch(Exception e){runOnUiThread(()->emit("notice","This file is unavailable."));}
+            });
+        }
         @JavascriptInterface public void pickImage(String target, boolean temporary) {
             runOnUiThread(() -> {
                 imageTarget = target; imageTemporary = temporary;
@@ -291,9 +338,9 @@ public final class MainActivity extends Activity {
                 }
             });
         }
-        @JavascriptInterface public void pickChatFile(String target) {
+        @JavascriptInterface public void pickChatFile(String target,boolean temporary) {
             runOnUiThread(() -> {
-                fileTarget = target;
+                fileTarget = target;fileTemporary=temporary;
                 // Providers report some .md, .log and .zip files as generic binary data.
                 start(new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*")
                     .putExtra(Intent.EXTRA_MIME_TYPES, new String[]{"text/*", "application/json", "application/zip",
@@ -432,6 +479,7 @@ public final class MainActivity extends Activity {
     @Override protected void onSaveInstanceState(Bundle state) {
         super.onSaveInstanceState(state);state.putString("imageTarget",imageTarget);state.putBoolean("imageTemporary",imageTemporary);
         state.putString("fileTarget", fileTarget);
+        state.putBoolean("fileTemporary",fileTemporary);state.putString("exportVersion",exportVersion);
         if (cameraFile != null) state.putString("cameraName", cameraFile.getName());
         state.putParcelable("deferredPick", deferredPick);
         state.putParcelable("deferredFile", deferredFile);
@@ -449,7 +497,7 @@ public final class MainActivity extends Activity {
         cameraFile = null;
         loadImage(uri, imageTarget, imageTemporary, taken);
     }
-    private void loadChatFile(Uri uri, String target) {
+    private void loadChatFile(Uri uri, String target,boolean temporary) {
         files.execute(() -> {
             try {
                 if (!"content".equals(uri.getScheme())) throw new IOException("Choose a file from the Android picker.");
@@ -461,9 +509,14 @@ public final class MainActivity extends Activity {
                 }
                 try (InputStream input = getContentResolver().openInputStream(uri)) {
                     if (input == null) throw new IOException("Couldn’t open this file.");
-                    AttachedFile file = AttachedFile.read(input, name, mime == null ? "" : mime, getCacheDir());
-                    String payload = new JSONObject().put("name",file.name).put("detail",file.detail).put("body",file.body).toString();
-                    runOnUiThread(() -> emit("chatFile", target, payload));
+                    String type=mime==null?"":mime;
+                    JSONObject descriptor;
+                    if(temporary){
+                        AttachedFile file=AttachedFile.read(input,name,type,getCacheDir());
+                        descriptor=new JSONObject().put("name",file.name).put("detail",file.detail).put("body",file.body);
+                    }else descriptor=shelf.add(input,name,type,target,"");
+                    String payload=descriptor.toString();
+                    runOnUiThread(()->emit("chatFile",target,payload));
                 }
             } catch (Exception error) {
                 runOnUiThread(() -> emit("notice", error instanceof IOException && error.getMessage() != null
@@ -478,6 +531,12 @@ public final class MainActivity extends Activity {
         files.execute(() -> {
             try {
                 JSONObject descriptor=images.importImage(uri,temporary);
+                if(!temporary){
+                    String name="Photo-"+new java.text.SimpleDateFormat("yyyyMMdd-HHmmss",Locale.US).format(new Date())+".jpg";
+                    try(InputStream in=new ByteArrayInputStream(images.bytes(descriptor.getString("id")))){
+                        descriptor.put("shelfId",shelf.add(in,name,"image/jpeg",target,"").getString("id"));
+                    }catch(Exception failure){runOnUiThread(()->emit("notice","Photo attached. Couldn’t keep a copy in Files."));}
+                }
                 runOnUiThread(() -> emit("imagePicked",target,descriptor.toString()));
             } catch (Exception e) {
                 runOnUiThread(() -> emit("notice",e instanceof IOException && e.getMessage()!=null?e.getMessage():"Couldn’t open that image. Try another copy."));
@@ -495,12 +554,12 @@ public final class MainActivity extends Activity {
             } else clearCamera();
             return;
         }
-        if (result != RESULT_OK || data == null) {if (code == EXPORT) exportText = null; return;}
+        if (result != RESULT_OK || data == null) {if (code == EXPORT) exportVersion = ""; return;}
         final String target = importTarget;
         if (code == IMAGE && data.getData() != null) {
             if(ready) finishImagePick(data.getData()); else deferredPick=data.getData();
         } else if (code == CHAT_FILE && data.getData() != null) {
-            if (ready) loadChatFile(data.getData(), fileTarget); else deferredFile = data.getData();
+            if (ready) loadChatFile(data.getData(), fileTarget,fileTemporary); else deferredFile = data.getData();
         } else if (code == VOICE) {
             ArrayList<String> words = data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
             if (words != null && !words.isEmpty()) emit("dictated", target, words.get(0));
@@ -513,15 +572,17 @@ public final class MainActivity extends Activity {
                     runOnUiThread(() -> emit("file", target, text));
                 } catch (Exception e) { runOnUiThread(() -> emit("notice", "Choose a UTF-8 text file of up to 14,000 characters.")); }
             });
-        } else if (code == EXPORT && data.getData() != null && exportText != null) {
-            String text = exportText; exportText = null;
-            Uri uri = data.getData();
-            files.execute(() -> {
-                try (OutputStream stream = getContentResolver().openOutputStream(uri, "wt")) {
-                    if (stream == null) throw new IOException();
-                    stream.write(text.getBytes(StandardCharsets.UTF_8));
-                    runOnUiThread(() -> emit("notice", "Markdown file saved."));
-                } catch (Exception e) { runOnUiThread(() -> emit("notice", "Couldn’t save the file. Try another location.")); }
+        } else if(code==EXPORT && data.getData()!=null && !exportVersion.isEmpty()){
+            String version=exportVersion;exportVersion="";
+            Uri uri=data.getData();
+            files.execute(()->{
+                try{
+                    try(OutputStream out=getContentResolver().openOutputStream(uri,"wt")){
+                        if(out==null)throw new IOException();
+                        shelf.writeTo(version,out);
+                    }
+                    runOnUiThread(()->emit("notice","File downloaded."));
+                }catch(Exception e){runOnUiThread(()->emit("notice","Couldn’t download the file. Choose another location."));}
             });
         }
     }
@@ -533,7 +594,7 @@ public final class MainActivity extends Activity {
         if (live != null) live.stopped();
         stopRequest();
         network.shutdown();
-        files.shutdown();
+        files.execute(shelf::close);files.shutdown();
         if (output != null) output.close();
         if (web != null) {web.removeJavascriptInterface("Nota"); frame.removeView(web); web.destroy(); web = null;}
         super.onDestroy();

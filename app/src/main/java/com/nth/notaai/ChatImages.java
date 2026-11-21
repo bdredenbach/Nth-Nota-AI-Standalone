@@ -81,16 +81,20 @@ final class ChatImages {
                 if (out.size() <= 1200000) break;
             }
             if (out.size() > 1200000) throw new IOException("Crop the image to the area you want to discuss.");
-            String id = UUID.randomUUID().toString();
-            if (temp) temporary.put(id,out.toByteArray());
-            else {
-                if (!directory.isDirectory() && !directory.mkdirs()) throw new IOException("Couldn’t save the image on this device.");
-                File dest = new File(directory,id);
-                try (OutputStream stream = new FileOutputStream(dest)) { out.writeTo(stream); }
-                catch (IOException failure) { dest.delete(); throw failure; }
-            }
-            return new JSONObject().put("id",id).put("width",bitmap.getWidth()).put("height",bitmap.getHeight());
+            return saveJpeg(out.toByteArray(),temp,bitmap.getWidth(),bitmap.getHeight());
         } finally { bitmap.recycle(); }
+    }
+
+    JSONObject saveJpeg(byte[] data, boolean temp,int width,int height) throws Exception {
+        String id=UUID.randomUUID().toString();
+        if(temp)temporary.put(id,data);
+        else{
+            if(!directory.isDirectory()&&!directory.mkdirs())throw new IOException("Couldn’t save the photo.");
+            File dest=new File(directory,id);
+            try(OutputStream out=new FileOutputStream(dest)){out.write(data);}
+            catch(IOException failure){dest.delete();throw failure;}
+        }
+        return new JSONObject().put("id",id).put("width",width).put("height",height);
     }
 
     byte[] bytes(String id) throws IOException {

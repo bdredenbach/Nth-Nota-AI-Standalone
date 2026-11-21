@@ -77,10 +77,11 @@ const Organizer = (() => {
    const found=items.map(it=>({it,hit:match(it,q)})).filter(result=>result.hit).sort((a,b)=>pinOrder(a.it,b.it));
    if(projects.length)html+=section('Projects')+projects.map(([id,name])=>projectRow(id,name)).join('');
    if(found.length)html+=section('Chats and cards')+found.map(({it,hit})=>row(it,true,false,hit.excerpt)).join('');
+   const files=Shelf.searchDrawer(q);if(files)html+=section('Files')+files;
    if(!html)html='<p class="desc">No results for “'+M.esc(drawerQuery.trim())+'”.</p>';
   }else{
    const links=sorted().slice(0,3).map(([id,name])=>button('org-project',name,'folder',attr(id),'drawer-project')).join('');
-   html='<div class="drawer-links">'+button('org-projects','Projects','folder')+(links?'<div class="drawer-projects">'+links+'</div>':'')+button('desk','Desk','desk')+button('history','All chats','history')+'</div>';
+   html='<div class="drawer-links">'+button('org-projects','Projects','folder')+(links?'<div class="drawer-projects">'+links+'</div>':'')+button('fs-open','Files','clip')+button('desk','Desk','desk')+button('history','All chats','history')+'</div>';
    const pinned=items.filter(it=>hasPin(it.id));
    if(pinned.length){
     html+=section('Pinned')+pinned.slice(0,4).map(it=>row(it)).join('');
@@ -255,5 +256,5 @@ const Organizer = (() => {
   }
   return true;
  }
- return {load,label,hasPin,pinOrder,searchable,inherit,forget,membership,badge,drawerList,candidates,handle,openItem,options,finishItem,isPage,render,resetReturn,back};
+ return {load,label,hasPin,pinOrder,searchable,inherit,forget,membership,badge,drawerList,candidates,handle,openItem,confirmSwitch,options,finishItem,isPage,render,resetReturn,back};
 })();

@@ -111,7 +111,7 @@ function showSettings(){
  '<label class="pace-label" for="voice-pace">Speaking pace <output id="pace-value" for="voice-pace">'+voiceRate()+'%</output></label>'+
  '<input type="range" id="voice-pace" aria-label="Speaking pace" min="75" max="110" step="5" value="'+voiceRate()+'" aria-valuetext="'+voiceRate()+' percent">'+
  '<button class="choice framed" data-action="preview-voice">'+icon('sound')+'<span id="voice-preview-label" aria-live="polite">Preview voice</span></button>'+
- '<h3>On this device</h3><p class="desc">Chats, drafts and Desk cards are stored here. Temporary chats stay in memory. Android handles microphone input through its speech service.</p><p class="version">Nth Nota AI · 0.9.0</p>','settings');
+ '<h3>On this device</h3><p class="desc">Chats, drafts and Desk cards are stored here. Temporary chats stay in memory. Android handles microphone input through its speech service.</p><p class="version">Nth Nota AI · 0.10.0</p>','settings');
 }
 function consentDialog(){
  modal('Allow cloud questions?','<p class="desc">Sending a message shares it and recent replies with Nth Nota’s Cloudflare and Groq service. Web questions can share search terms or requested links with research providers. Sending an attached file shares its text and file names. Photos have their own sharing choice.</p><p class="desc">You can turn this off in Settings. Your draft stays here until you press Send.</p>'+button('agree','Allow cloud questions','check','','primary')+button('close','Keep off',null,'','choice centered'),'consent');
@@ -131,7 +131,7 @@ function renderChat(scroll=false){
  let answer;
  if(t.status==='waiting') answer='<div class="working" role="status"><i></i>'+(t.image?'Examining your image…':t.file?'Reading your file…':t.attachment?'Reading your passage…':t.mode==='search'?'Looking for sources…':'Working on your reply…')+'</div>';
  else if(t.status==='error')answer='<div class="problem"><p>'+M.esc(t.error)+'</p>'+button('retry','Retry','arrow',attr,'text-btn')+button('editq','Edit question','pen',attr,'text-btn')+'</div>';
- else answer='<div class="answer-text">'+M.markdown(t.reply)+'</div>'+(t.canAskText?button('ask-image-text','Ask online about this text','pen',attr,'action-chip'):'')+(t.quote?button('practice-line','“'+t.quote+'”','chat','data-i="'+t.line+'"','choice framed'):'')+(t.phone?phoneActions(t,i):'')+sourceRows(t.sources)+(t.unavailable?button('web-fallback','Search in browser','sendout',attr,'text-btn'):'')+'<div class="reply-meta">'+M.esc([t.imageMethod|| (t.phone?(t.weatherData?'Weather · MET Norway':'On this phone'):t.unavailable?'Couldn’t verify':(t.searched?'Web search':t.attachment?'Writing':'AI reply')),t.provider].filter(Boolean).join(' · '))+'</div><div class="reply-actions">'+button('to-desk','To Desk','desk',attr,'action-chip')+button('second-look','Second look','compass',attr,'text-btn second-look')+'<button data-action="copy-reply" '+attr+' class="bare" aria-label="Copy reply">'+icon('copy')+'</button><button data-action="more" '+attr+' class="bare" aria-label="More reply actions">'+icon('more')+'</button></div>';
+ else answer='<div class="answer-text">'+M.markdown(t.reply)+'</div>'+(t.canAskText?button('ask-image-text','Ask online about this text','pen',attr,'action-chip'):'')+(t.quote?button('practice-line','“'+t.quote+'”','chat','data-i="'+t.line+'"','choice framed'):'')+(t.phone?phoneActions(t,i):'')+sourceRows(t.sources)+(t.unavailable?button('web-fallback','Search in browser','sendout',attr,'text-btn'):'')+'<div class="reply-meta">'+M.esc([t.imageMethod|| (t.phone?(t.weatherData?'Weather · MET Norway':'On this phone'):t.unavailable?'Couldn’t verify':(t.searched?'Web search':t.attachment?'Writing':'AI reply')),t.provider].filter(Boolean).join(' · '))+'</div><div class="reply-actions">'+Shelf.replyAction(t,i)+button('to-desk','To Desk','desk',attr,'action-chip')+button('second-look','Second look','compass',attr,'text-btn second-look')+'<button data-action="copy-reply" '+attr+' class="bare" aria-label="Copy reply">'+icon('copy')+'</button><button data-action="more" '+attr+' class="bare" aria-label="More reply actions">'+icon('more')+'</button></div>';
  return '<article class="turn" id="turn-'+i+'"><div class="question">'+(t.image?ChatImages.turnPhoto(t,i):'')+(t.file?button('turn-file',thread.documents?.[t.file]?.name||'File','clip',attr,'turn-file'):'')+(t.attachment?'<small>'+icon('clip')+' Attached passage</small>':'')+M.esc(t.question)+'</div><div class="byline"><span class="mini-mark">N</span> '+M.esc(t.practice==='role'?thread.rehearsal.role:t.practice==='coach'?'Nota · Coach':'Nth Nota AI')+'</div>'+answer+'</article>';
  }).join('')+'</div>';
  }
@@ -168,7 +168,7 @@ function navigate(dest){
  Organizer.resetReturn();
  if(LiveChat.active()){if(dest==='chat'&&page==='chat')LiveChat.view(false);else LiveChat.end();}
  flush();if(sheet)closeSheet();page=dest;query='';shell();$('main').scrollTop=0;
- if(dest==='chat')renderChat(true);else if(dest==='card')renderCard();else if(Organizer.isPage())Organizer.render();else renderLibrary(true);
+ if(dest==='chat')renderChat(true);else if(dest==='card')renderCard();else if(dest==='files')Shelf.render();else if(Organizer.isPage())Organizer.render();else renderLibrary(true);
 }
 function chooseThread(t){
  if(t!==thread && LiveChat.active())LiveChat.end();
@@ -240,10 +240,11 @@ function runTurn(t,prior,voice=null){
  else N.ask(job.id,JSON.stringify(payload));
  return true;
 }
-function send(){
+function send(skipFileLookup=false){
  if(!job&&!thread.image&&!thread.file&&!thread.attachment&&Thoughts.command(thread.draft)==='leave it here'){thread.draft='';ConversationTools.bookmark();return;}
  if(job){stopJob();return;}
  const question=thread.draft.trim()||(thread.image?'What can you tell me about this photo?':thread.file?'Summarize this file.':'');if(!question)return;
+ try{if(!skipFileLookup && Shelf.intercept(question))return;}catch(e){Shelf.fail(e);return;}
  if(!thread.image&&!thread.file&&!thread.attachment){const origin=thread,local=Studio.command(question);if(local){origin.draft='';saveThread(origin);if(page==='chat'&&origin===thread){renderChat();}if(local.say)notice(local.say);return;}}
  if(thread.image && ChatImages.needsChoice(thread.imageMode)){ChatImages.choose(send);return;}
  if(!N.cloud()&&(thread.image?thread.imageMode==='text':(thread.rehearsal||thread.file||thread.attachment||!phoneIntent(question,thread.turns[thread.turns.length-1])))){consentDialog();return;}
@@ -253,6 +254,7 @@ function send(){
 function submitQuestion(question,attachment,voice){
  const t={question,attachment,spoken:!!voice,mode:thread.mode,status:'waiting',sources:[]};
  if(thread.file)t.file=thread.file;
+ if(!thread.rehearsal&&!thread.image&&!thread.documents?.[thread.file]?.editTarget&&Shelf.wantsFile(question))t.makeFile=M.id('output');
  if(thread.image){t.image=thread.image;t.imageMode=ChatImages.mode(thread.imageMode);}
  if(attachment&&M.request(t,[]).prompt.length>16000){notice('Shorten your question or attachment to fit the writing request.');return false;}
  if(thread.rehearsal){
@@ -287,7 +289,8 @@ function incomingFile(target,text){
  navigate('chat');reviewAttachment(text);
 }
 function replyMenu(i){
- sheetTurn=i;modal('Reply actions',button('branch','Branch from here','fork')+button('editq','Edit question in a new branch','pen','data-i="'+i+'"')+button('read','Read aloud','sound')+button('silence','Stop reading','stop')+button('share-reply','Share reply','sendout'));
+ const doc=thread.documents?.[thread.turns[i]?.file];
+ sheetTurn=i;modal('Reply actions',(doc?.savedId&&!doc.editTarget?button('fs-revise-reply','Save as a new version','pen','data-id="'+i+'"'):'')+button('fs-save-reply','Save reply as file','down','data-id="'+i+'"')+button('branch','Branch from here','fork')+button('editq','Edit question in a new branch','pen','data-i="'+i+'"')+button('read','Read aloud','sound')+button('silence','Stop reading','stop')+button('share-reply','Share reply','sendout'));
 }
 let menuId='';
 function itemMenu(id,isCard){
@@ -316,6 +319,7 @@ let pendingTemp=false;
 document.addEventListener('click',event=>{
  const el=event.target.closest('[data-action]');if(!el)return;
  const action=el.dataset.action,i=Number(el.dataset.i),v=el.dataset.val,id=el.dataset.id;
+ if(action.startsWith('fs-')){Shelf.handle(action.slice(3),id,el).catch(Shelf.fail);return;}
  if(action.startsWith('org-')&&Organizer.handle(action,id))return;
  switch(action){
  case 'practice-setup':Rehearsal.setup();break;
@@ -378,7 +382,8 @@ document.addEventListener('click',event=>{
   modal('Answer mode',button('set-mode','Auto','spark','data-val="auto"')+'<p class="option-help">Let the service choose when to look something up.</p>'+button('set-mode','Web search','globe','data-val="search"')+'<p class="option-help">Request a sourced answer from the web.</p>');break;
  case 'set-mode':thread.mode=v;saveThread();closeSheet();syncComposer();break;
  case 'attach':ChatImages.menu();break;
- case 'camera':case 'pick-image':case 'pick-file':ChatImages.pick(el.dataset.action);break;
+ case 'camera':case 'pick-image':ChatImages.pick(el.dataset.action);break;
+ case 'pick-file':try{Shelf.fileMenu();}catch(e){Shelf.fail(e);}break;
  case 'photo-choice':ChatImages.rememberChoice(v);break;
  case 'photo-setting':ChatImages.rememberChoice(v);showSettings();break;
  case 'preview-file':ChatFiles.preview();break;
@@ -467,7 +472,7 @@ document.addEventListener('click',event=>{
  case 'remove-item':flush();card.items.splice(i,1);putCard();renderCard();break;
  case 'rename':modal('Rename','<label class="field-label">Title<input id="rename" maxlength="120"></label>'+button('save-name','Save title',null,'','primary'));$('rename').value=Organizer.label(itemFromMenu());$('rename').focus();break;
  case 'save-name':{const it=itemFromMenu();const title=$('rename').value.trim();if(!title){notice('Enter a title.');break;}const renamed={...it,title,updated:Date.now()};if(!persist(it.id,renamed))break;Object.assign(it,renamed);Organizer.finishItem();break;}
- case 'export':case 'share-item':{const it=itemFromMenu(),text=itemText(it);closeSheet();if(action==='share-item')N.share(text);else N.exportFile(it.title.replace(/[^\w .-]/g,'_').slice(0,72)||'Nth Nota',text);break;}
+ case 'export':case 'share-item':{const it=itemFromMenu(),text=itemText(it);closeSheet();if(action==='share-item')N.share(text);else Shelf.exportItem(it,text).catch(Shelf.fail);break;}
  case 'confirm-delete':confirmAction('Delete this '+(cards.has(menuId)?'card':'chat')+'?','This removes “'+itemFromMenu().title+'” from this device.','delete','Delete');break;
  case 'delete':{
    const isCard=cards.has(menuId),removed=threads.get(menuId);
@@ -484,6 +489,7 @@ document.addEventListener('click',event=>{
 $('question').addEventListener('focus',()=>{if(LiveChat.active())LiveChat.end();});
 document.addEventListener('input',e=>{
  const target=e.target;
+ if(target.id==='shelf-search'){Shelf.search(target.value);return;}
  if(target.id==='org-search'){Organizer.drawerList();return;}
  if(target.id==='org-find'){Organizer.candidates();return;}
  if(target.id==='voice-pace'){
@@ -527,7 +533,12 @@ $('question').addEventListener('paste',e=>{
 });
 document.addEventListener('visibilitychange',()=>{if(document.hidden)flush();});
 window.notaEvent=(event,...args)=>{
- if(event==='chatFile'){ChatFiles.picked(...args);return;}
+ if(event==='shelfResult'){Shelf.event(...args);return;}
+ if(event==='chatFile'){
+  if(args[0]==='@files'){Shelf.changed();notice('Added to Files.');}
+  else ChatFiles.picked(...args);
+  return;
+ }
  if(ChatImages.event(event,args))return;
  if(event==='phoneStatus'){if(sheet==='phone')phoneSetup(phoneStep);return;}
  if(event==='previewStopped'){if(previewToken){previewToken='';const el=$('voice-preview-label');if(el)el.textContent='Preview voice';}return;}
@@ -562,9 +573,11 @@ window.notaEvent=(event,...args)=>{
  }
  saveThread(active.thread);if(page==='chat'&&active.thread===thread)renderChat(true);
  else if(page==='history')renderLibrary(false);
+ if(event==='answer')Shelf.completed(active.thread,t);
  LiveChat.reply(active,t);
 };
 document.querySelectorAll('[data-icon]').forEach(el=>{el.innerHTML=icon(el.dataset.icon)+el.innerHTML;});
 applyVoice();applyTheme();shell();renderChat(true);
 if(!prefs.phoneIntro){prefs.phoneIntro=true;remember();phoneSetup();}
 N.mounted();
+Shelf.restoreOutputs();

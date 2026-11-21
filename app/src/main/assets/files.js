@@ -6,9 +6,14 @@ const ChatFiles = (() => {
   if(old && !thread.turns.some(t=>t.file===old))delete thread.documents[old];
  }
  function picked(target,raw){
-  if(target!==thread.id||thread.rehearsal){notice('Return to the chat and choose the file again.');return;}
   let doc;try{doc=JSON.parse(raw);}catch(_){return;}
-  if(typeof doc.body!=='string'||!doc.body.trim()||typeof doc.name!=='string')return;
+  if(target!==thread.id||thread.rehearsal){
+   if(doc.id&&doc.family){Shelf.changed();notice('Saved to Files. You can open it from any chat.');}
+   else notice('Return to the chat and choose the file again.');
+   return;
+  }
+  if(doc.id&&doc.family)doc=Shelf.doc(doc);
+  if(typeof doc.body!=='string'||(!doc.body.trim()&&!doc.editTarget)||typeof doc.name!=='string')return;
   if(thread.image)ChatImages.detach();
   clear();thread.attachment='';
   if(!thread.documents)thread.documents={};
@@ -22,7 +27,7 @@ const ChatFiles = (() => {
   const past=Number.isInteger(index),id=past?thread.turns[index]?.file:thread.file,doc=thread.documents?.[id];
   if(!doc)return;
   modal(doc.name,'<p class="desc">'+M.esc(doc.detail)+' · Only the text below is shared when you send.</p><pre class="file-preview">'+M.esc(doc.body)+'</pre>'+
-   (past?button('reuse-file','Ask about this file','chat','data-i="'+index+'"','primary'):''),'file-preview');
+   (doc.savedId?button('fs-detail','Open in Files','folder','data-id="'+M.esc(doc.savedId)+'"'):'')+(past?button('reuse-file','Ask about this file','chat','data-i="'+index+'"','primary'):''),'file-preview');
  }
  function reuse(index){
   const id=thread.turns[index]?.file;if(!thread.documents?.[id])return;
