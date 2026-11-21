@@ -138,3 +138,11 @@ pre,code{font-family:monospace;background:var(--muted);border-radius:4px;font-si
 .phrase-row{display:flex;align-items:center;gap:6px}
 .phrase-row .framed{flex:1;min-width:0}
 .prediction-compare section section{background:transparent;color:inherit;border:0;border-top:1px solid var(--line);border-radius:0;margin-top:12px;padding:10px 0 0}
+
+.attached-image{display:flex;align-items:center;gap:8px;margin:2px 0 8px}
+.attached-image>button:first-child{display:flex;align-items:center;gap:10px;text-align:left;color:inherit;border-radius:12px;background:var(--paper);border:1px solid var(--line);padding:4px 12px 4px 4px}
+.attached-image span{font-weight:650}.attached-image small{display:block;font-size:.78rem;font-weight:400}
+.image-thumb{width:42px;height:42px;object-fit:cover;border-radius:8px}
+.turn-image{display:block;background:transparent;border:0;padding:0;margin:0 0 8px}
+.message-image{display:block;max-width:min(205px,60vw);max-height:165px;border-radius:10px;object-fit:contain}
+.image-preview{display:block;width:100%;height:auto;max-height:42vh;object-fit:contain;border-radius:8px;margin-bottom:12px}

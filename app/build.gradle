@@ -7,8 +7,8 @@ android {
         applicationId 'com.nth.notaai'
         minSdk 26
         targetSdk 36
-        versionCode 6
-        versionName '0.6.0'
+        versionCode 7
+        versionName '0.7.0'
     }
     androidResources { noCompress += 'pack' }
     packaging { jniLibs { useLegacyPackaging = true } }
@@ -27,6 +27,8 @@ configurations {
 }
 
 dependencies {
+    implementation 'com.google.mlkit:text-recognition:16.0.1'
+    implementation 'com.google.mlkit:genai-prompt:1.0.0-beta4'
     implementation 'com.google.mediapipe:tasks-audio:1.2.3'
     kokoroWeights 'litert-community:kokoro_int8_fp16:bf1c2405642aa310bd210205c22d3ae1abc253fb@litertlm'
 }

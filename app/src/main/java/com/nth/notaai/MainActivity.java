@@ -21,9 +21,15 @@ import java.util.concurrent.Executors;
 
 public final class MainActivity extends Activity {
     private static final String BASE = "https://appassets.androidplatform.net/";
-    private static final int FILE = 71, VOICE = 72, EXPORT = 73;
+    private static final int FILE = 71, VOICE = 72, EXPORT = 73, IMAGE = 74;
     private final ExecutorService network = Executors.newCachedThreadPool();
     private final ExecutorService files = Executors.newSingleThreadExecutor();
+    private ChatImages images;
+    private Uri sharedImage;
+    private String imageTarget = "";
+    private boolean imageTemporary;
+    private Uri deferredPick;
+    private java.util.concurrent.Future<?> imageTask;
     private WebView web;
     private FrameLayout frame;
     private SharedPreferences store;
@@ -36,10 +42,18 @@ public final class MainActivity extends Activity {
     private LiveVoice live;
     private String pendingVoice = "";
     private boolean ready, dark;
+    private long lastVisionCheck;
+    private boolean cloudVisionReady;
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         store = getSharedPreferences("notebook", MODE_PRIVATE);
+        images = new ChatImages(this);
+        files.execute(() -> images.cleanUnreferenced(store.getAll().values()));
+        if (state != null) {
+            imageTarget = state.getString("imageTarget","");
+            imageTemporary = state.getBoolean("imageTemporary");
+        }
         frame = new FrameLayout(this);
         phone = new PhoneHelp(this);
         output = new SpeechOutput(this);
@@ -89,8 +103,12 @@ public final class MainActivity extends Activity {
             @Override public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest req) {
                 Uri uri = req.getUrl();
                 String path = uri.getPath();
-                if ("https".equals(uri.getScheme()) && "appassets.androidplatform.net".equals(uri.getAuthority()) && path != null &&
-                    path.matches("/(index\\.html|app\\.js|live\\.js|phone\\.js|model\\.js|icons\\.js|style\\.css|mark\\.png|orbit\\.png|serif\\.ttf|sans\\.ttf)")) {
+                boolean local = "https".equals(uri.getScheme()) && "appassets.androidplatform.net".equals(uri.getAuthority());
+                if (local && path != null && path.startsWith("/chat-image/")) {
+                    try { return images.response(path.substring("/chat-image/".length())); }
+                    catch (IOException ignored) {}
+                }
+                if (local && path != null && path.matches("/(?:[a-z][a-z-]*\\.js|index\\.html|style\\.css|orbit\\.png|(?:sans|serif)\\.ttf)")) {
                     String mime = path.endsWith("js") ? "application/javascript" : path.endsWith("css") ? "text/css" :
                         path.endsWith("png") ? "image/png" : path.endsWith("ttf") ? "font/ttf" : "text/html";
                     try { return new WebResourceResponse(mime, "UTF-8", getAssets().open(path.substring(1))); }
@@ -105,6 +123,15 @@ public final class MainActivity extends Activity {
     }
 
     private void collect(Intent intent) {
+        if (intent != null && Intent.ACTION_SEND.equals(intent.getAction()) && intent.getType() != null && intent.getType().startsWith("image/")) {
+            android.os.Parcelable supplied = intent.getParcelableExtra(Intent.EXTRA_STREAM);
+            Uri uri = supplied instanceof Uri ? (Uri)supplied : null;
+            if (uri == null && intent.getClipData() != null && intent.getClipData().getItemCount() > 0) uri = intent.getClipData().getItemAt(0).getUri();
+            if (uri != null && "content".equals(uri.getScheme())) sharedImage = uri;
+            setIntent(new Intent(this, MainActivity.class));
+            if (ready) deliverIncoming();
+            return;
+        }
         if (intent != null && Intent.ACTION_SEND.equals(intent.getAction()) && "text/plain".equals(intent.getType())) {
             CharSequence text = intent.getCharSequenceExtra(Intent.EXTRA_TEXT);
             if (text != null && !text.toString().trim().isEmpty()) {
@@ -116,6 +143,11 @@ public final class MainActivity extends Activity {
         }
     }
     private void deliverIncoming() {
+        if (deferredPick!=null) {
+            Uri selected=deferredPick;deferredPick=null;
+            loadImage(selected,imageTarget,imageTemporary);
+        }
+        if (sharedImage != null) emit("sharedImage");
         if (incoming == null) return;
         if (incoming.isEmpty()) emit("notice", "Shared text exceeds 14,000 characters. Select a shorter passage.");
         else emit("incoming", incoming);
@@ -141,7 +173,17 @@ public final class MainActivity extends Activity {
         web.evaluateJavascript(js.append(")").toString().replace("\u2028","\\u2028").replace("\u2029","\\u2029"), null);
     }
 
+    private synchronized boolean checkVision() {
+        long now = android.os.SystemClock.elapsedRealtime();
+        if (lastVisionCheck==0 || now-lastVisionCheck>60000) {
+            cloudVisionReady=Gateway.visionAvailable();
+            lastVisionCheck=now;
+        }
+        return cloudVisionReady;
+    }
+
     private void stopRequest() {
+        if(imageTask!=null){imageTask.cancel(true);imageTask=null;}
         if(phoneTask!=null){phoneTask.cancel(true);phoneTask=null;}
         Gateway current = pending;
         pending = null;
@@ -218,6 +260,77 @@ public final class MainActivity extends Activity {
             exportText = text;
             start(new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("text/markdown").putExtra(Intent.EXTRA_TITLE, name + ".md"), EXPORT);
         }); }
+        @JavascriptInterface public void pickImage(String target, boolean temporary) {
+            runOnUiThread(() -> {
+                imageTarget = target; imageTemporary = temporary;
+                Intent picker;
+                if (Build.VERSION.SDK_INT >= 33) picker = new Intent(android.provider.MediaStore.ACTION_PICK_IMAGES).setType("image/*");
+                else picker = new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("image/*");
+                try { startActivityForResult(picker,IMAGE); }
+                catch (ActivityNotFoundException missing) { start(new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("image/*"),IMAGE); }
+            });
+        }
+        @JavascriptInterface public void acceptSharedImage(String target, boolean temporary) {
+            runOnUiThread(() -> {
+                Uri uri = sharedImage; sharedImage = null;
+                if (uri != null) loadImage(uri,target,temporary);
+            });
+        }
+        @JavascriptInterface public void discardImage(String id) { files.execute(() -> images.discard(id)); }
+        @JavascriptInterface public void imageStatus() {
+            network.execute(() -> {
+                int status = -1;
+                try { status = ImageReader.model().checkStatus().get(5,java.util.concurrent.TimeUnit.SECONDS); }
+                catch (Exception | LinkageError ignored) {}
+                final String name = status == com.google.mlkit.genai.common.FeatureStatus.AVAILABLE ? "available" :
+                    status == com.google.mlkit.genai.common.FeatureStatus.DOWNLOADABLE ? "downloadable" :
+                    status == com.google.mlkit.genai.common.FeatureStatus.DOWNLOADING ? "downloading" : "unavailable";
+                runOnUiThread(() -> emit("imageStatus",name));
+                if (cloud() && checkVision()) runOnUiThread(() -> emit("cloudVisionReady"));
+            });
+        }
+        @JavascriptInterface public void setupVision() {
+            network.execute(() -> {
+                try {
+                    var model = ImageReader.model();
+                    model.download(new com.google.mlkit.genai.common.DownloadCallback() {
+                        public void onDownloadStarted(long size) { runOnUiThread(() -> emit("imageStatus","downloading")); }
+                        public void onDownloadProgress(long size) {}
+                        public void onDownloadCompleted() { runOnUiThread(() -> emit("imageStatus","available")); }
+                        public void onDownloadFailed(com.google.mlkit.genai.common.GenAiException e) { runOnUiThread(() -> emit("notice","On-device vision could not be downloaded. Try again on Wi-Fi.")); }
+                    });
+                } catch (Exception | LinkageError e) { runOnUiThread(() -> emit("notice","Android could not start the model download.")); }
+            });
+        }
+        @JavascriptInterface public void askImage(String id, String payload) {
+            runOnUiThread(() -> {
+                stopRequest();
+                JSONObject data;
+                try { data=new JSONObject(payload); } catch (org.json.JSONException e) {emit("failure",id,"Invalid image request.");return;}
+                String session=data.optString("session");
+                if (!session.isEmpty() && !live.acceptTurn(session,data.optString("token"))) {emit("failure",id,"This voice turn has ended.");return;}
+                Gateway gateway = new Gateway(); pending=gateway;pendingId=id;pendingVoice=session;
+                imageTask=network.submit(() -> {
+                    String answer="",error="";
+                    try {
+                        byte[] pixels = images.bytes(data.getString("id"));
+                        String mode = data.optString("mode");
+                        if ("cloud".equals(mode)) {
+                            if (!cloud()) throw new IOException("Cloud questions are off.");
+                            answer=gateway.vision(data,pixels).put("imageMethod","Cloud image analysis").toString();
+                        } else answer=ImageReader.answer(pixels,data,mode,gateway,this::cloud).toString();
+                    } catch (InterruptedException stop) { Thread.currentThread().interrupt();return; }
+                    catch (IOException e) { error=e.getMessage(); }
+                    catch (Exception | LinkageError e) { error="Couldn’t analyze this image. Try a closer crop or another image."; }
+                    final String result=answer,problem=error;
+                    runOnUiThread(() -> {
+                        if (pending!=gateway || !id.equals(pendingId) || isDestroyed()) return;
+                        pending=null;pendingId="";pendingVoice="";imageTask=null;
+                        emit(result.isEmpty()?"failure":"answer",id,result.isEmpty()?problem:result);
+                    });
+                });
+            });
+        }
         @JavascriptInterface public void pick(String target) { runOnUiThread(() -> {
             importTarget = target;
             start(new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("text/*"), FILE);
@@ -287,11 +400,26 @@ public final class MainActivity extends Activity {
         try { if (code < 0) startActivity(intent); else startActivityForResult(intent, code); }
         catch (ActivityNotFoundException e) { emit("notice", code == VOICE ? "No Android dictation service is installed." : "No app is available for this action."); }
     }
+    @Override protected void onSaveInstanceState(Bundle state) {
+        super.onSaveInstanceState(state);state.putString("imageTarget",imageTarget);state.putBoolean("imageTemporary",imageTemporary);
+    }
+    private void loadImage(Uri uri,String target,boolean temporary) {
+        files.execute(() -> {
+            try {
+                JSONObject descriptor=images.importImage(uri,temporary);
+                runOnUiThread(() -> emit("imagePicked",target,descriptor.toString()));
+            } catch (Exception e) {
+                runOnUiThread(() -> emit("notice",e instanceof IOException && e.getMessage()!=null?e.getMessage():"Couldn’t open that image. Try another copy."));
+            }
+        });
+    }
     @Override protected void onActivityResult(int code, int result, Intent data) {
         super.onActivityResult(code, result, data);
         if (result != RESULT_OK || data == null) {if (code == EXPORT) exportText = null; return;}
         final String target = importTarget;
-        if (code == VOICE) {
+        if (code == IMAGE && data.getData() != null) {
+            if(ready) loadImage(data.getData(),imageTarget,imageTemporary); else deferredPick=data.getData();
+        } else if (code == VOICE) {
             ArrayList<String> words = data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
             if (words != null && !words.isEmpty()) emit("dictated", target, words.get(0));
         } else if (code == FILE && data.getData() != null) {

@@ -2,11 +2,21 @@
 
 A standalone Android assistant with two work surfaces. Chat holds a conversation. Desk holds editable notes, drafts and checklists that can outlive that conversation. A saved card carries its source links and opens the original thread while that thread exists. **Ask about this card** sends edits back through a new, reviewable draft.
 
-Version 0.6.0 is a debug-signed testing build. Application ID `com.nth.notaai`. Minimum Android 8.0, target Android 16 / API 36. It can be installed alongside the Nth Nota notes app and the Nth Desktop launchers.
+Version 0.7.0 is a debug-signed testing build. Application ID `com.nth.notaai`. Minimum Android 8.0, target Android 16 / API 36. It can be installed alongside the Nth Nota notes app and the Nth Desktop launchers.
+
+## Photos and screenshots
+
+In Chat, tap the plus beside the message box and choose **Photo or screenshot**. Android’s share sheet can also send one image to Nota. Review the preview, then type or dictate a question. The image stays selected for follow-ups, including live voice. Tap the cross beside the thumbnail to return to ordinary chat. Tap a picture in the transcript to ask about it again.
+
+When available, Android’s on-device Gemini Nano model answers from the pixels. The preview offers a model download on devices where Android reports it as downloadable. Otherwise, Nota reads Latin-script text and its approximate position with bundled ML Kit OCR. With cloud questions enabled, the default fallback sends the recognized lines, recent related exchanges and the question to the existing writing service. **Keep this analysis on my device** selects local processing. Answers identify which method was used. OCR can read a button label but cannot verify a button’s color or icon.
+
+The image picker needs no library-wide permission. Nota keeps a resized, metadata-free copy in private app storage for regular chats. Temporary images stay in memory. Image replies are excluded from ordinary cloud chat context. One image is active per question, and each question retains its image reference.
+
+The optional cloud image endpoint is implemented in `cloud/vision.mjs`. The Android preview offers full-image upload only after its capability check succeeds and cloud questions are enabled. The separate `nth-nota-vision` Worker uses an AI binding, the existing quota D1 database, a rate limiter and the free-only configuration. Its deployment does not change the text gateway.
 
 ## Live voice
 
-Tap **Live** in Chat, then choose **Voice in Chat** for the transcript or **Live View** for the animated dot. Allow microphone access when prompted. Enable cloud questions for general AI conversations. Speak, pause, and listen to the reply. The microphone reopens after playback finishes. **Show chat** and **Live View** switch views of the same thread. **Mute mic** pauses capture. **Interrupt** cancels the current answer or stops its playback. **End voice**, typing, opening another screen, or leaving the app ends the session. Android speech recognition handles microphone input. Nota speaks with its bundled Kokoro Heart model. Android handles microphone audio and may use its online speech service. Nth Nota sends recognized text through the existing chat gateway. Saved drafts and attachments are kept separate from spoken turns.
+Tap **Live** in Chat, then choose **Voice in Chat** for the transcript or **Live View** for the animated dot. Allow microphone access when prompted. Enable cloud questions for general AI conversations. Speak, pause, and listen to the reply. The microphone reopens after playback finishes. **Show chat** and **Live View** switch views of the same thread. **Mute mic** pauses capture. **Interrupt** cancels the current answer or stops its playback. **End voice**, typing, opening another screen, or leaving the app ends the session. Android speech recognition handles microphone input. Nota speaks with its bundled Kokoro Heart model. Android handles microphone audio and may use its online speech service. Nth Nota sends recognized text through the existing chat gateway. Draft text and text-file attachments are kept separate from spoken turns. An active image remains available for spoken follow-ups.
 
 ## Rehearsals, phrases and predictions
 
@@ -58,7 +68,7 @@ Android Studio signs local debug builds with its own debug key. Updates over a p
 - Each regular conversation keeps its own draft and completed turns. A cloud request uses up to six completed exchanges and 9,000 characters of recent context. Canceled and unavailable replies are excluded. Source links come from gateway metadata. Model output is rendered as escaped text with support for Markdown lists, code blocks, quotes and tables.
 - Temporary conversations are held in memory. Saving a Desk card or exporting is an explicit action that creates a lasting copy. A selected text file or text shared by another app opens for review. Selected passages support up to 14,000 characters and use the gateway writing route. Follow-up chat can receive the writing result and question. The original passage is excluded from ordinary chat history sent to the model.
 - Desk cards and regular conversations stay on the device. Deleting a chat preserves any separately saved cards. Switching off cloud access invalidates an in-flight reply. Data already transmitted to the service may already be processing.
-- The Android client speaks only to the existing Nth Nota service for inference. It posts consented requests to `/v1/chat` or `/v1/write` at `https://nth-nota-free-ai.bdredenbach.workers.dev`. Cloudflare and Groq are selected server-side. API keys, paid model routing and provider account configuration belong on the server.
+- The Android client speaks only to the existing Nth Nota service for inference. For text inference it posts consented requests to `/v1/chat` or `/v1/write` at `https://nth-nota-free-ai.bdredenbach.workers.dev`. Cloudflare and Groq are selected server-side. API keys, paid model routing and provider account configuration belong on the server.
 - Device dictation and optional Android voice depend on the installed Android speech services. Local storage, history, Desk editing and Markdown export are available without a cloud request.
 
 ## Product direction
@@ -68,7 +78,7 @@ Android Studio signs local debug builds with its own debug key. Updates over a p
 | Conversation | Multi-turn chat, exact stop/retry, edit as a branch, searchable local history, temporary chat | Streaming replies when supported by the Worker, optional project context and explicitly editable memory |
 | Thinking through an answer | Second look creates a branch to test an assumption, consider the opposing view or choose one next step | Compare two model answers side by side when a model selector and budget are available |
 | Research | Automatic or explicit web search, requested-page reading via the gateway, source links and an honest unavailable state | A research notebook with a source attached to each claim, broader retrieval quality tests and multi-step reports |
-| Working with material | UTF-8 text imports, Android text sharing, local notes, drafts, checklists and Markdown export | PDF and image understanding, structured spreadsheet analysis and charts |
+| Working with material | Screenshot and photo questions, UTF-8 text imports, Android sharing, local notes, drafts, checklists and Markdown export | PDF understanding, structured spreadsheet analysis and charts |
 | Voice and media | Voice in Chat and Live View, automatic turn taking, manual interruption, bundled Kokoro Heart, adjustable pace and dictation | Spoken interruption while Nota is talking, camera input, image creation and editing |
 | Work organization | Local history and Desk, searchable cards, return to source conversation | Projects with files and custom assistant instructions, optional encrypted sync and backup |
 | Connected tools | System document picker, share sheet and external source browser | User-selected connectors and scheduled tasks with clear permissions and execution records |

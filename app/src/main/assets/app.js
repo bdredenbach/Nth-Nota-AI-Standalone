@@ -21,7 +21,7 @@ function persist(key,value) {
 function remember(){persist('prefs',prefs);}
 function saveThread(t=thread){
  if(t.temporary)return;
- if(!t.turns.length&&!t.draft.trim()&&!t.attachment&&!t.bookmark&&!t.ramble&&!t.rehearsal && !threads.has(t.id))return;
+ if(!t.turns.length&&!t.draft.trim()&&!t.attachment&&!t.image&&!t.bookmark&&!t.ramble&&!t.rehearsal && !threads.has(t.id))return;
  threads.set(t.id,t);persist(t.id,t);
  if(t===thread && prefs.last!==t.id){prefs.last=t.id;remember();}
 }
@@ -111,7 +111,7 @@ function showSettings(){
  '<h3>On this device</h3><p class="desc">Chats, drafts and Desk cards are stored here. Temporary chats stay in memory. Android handles microphone input through its speech service.</p><p class="version">Nth Nota AI · 0.4.0</p>','settings');
 }
 function consentDialog(){
- modal('Allow cloud questions?','<p class="desc">Sending a message shares it and recent replies with Nth Nota’s Cloudflare and Groq service. Web questions can share search terms or requested links with research providers. If you attach text, sending shares that passage too.</p><p class="desc">You can turn this off in Settings. Your draft stays here until you press Send.</p>'+button('agree','Allow cloud questions','check','','primary')+button('close','Keep off',null,'','choice centered'),'consent');
+ modal('Allow cloud questions?','<p class="desc">Sending a message shares it and recent replies with Nth Nota’s Cloudflare and Groq service. Web questions can share search terms or requested links with research providers. If you attach text, sending shares that passage too. Image chats can use the on-device model. Choosing screenshot text shares recognized text and positions. Choosing cloud image analysis shares the image itself.</p><p class="desc">You can turn this off in Settings. Your draft stays here until you press Send.</p>'+button('agree','Allow cloud questions','check','','primary')+button('close','Keep off',null,'','choice centered'),'consent');
 }
 function sourceRows(list){return list && list.length?'<details class="sources"><summary>'+icon('link')+'Sources · '+list.length+'</summary>'+list.map(s=>button('source',s.title,'sendout','data-url="'+M.esc(s.url)+'"','source-row')).join('')+'</details>':'';}
 function emptyHome(){
@@ -126,10 +126,10 @@ function renderChat(scroll=false){
  if(t.kind)return ConversationTools.localTurn(t,i);
  const attr='data-i="'+i+'"';
  let answer;
- if(t.status==='waiting') answer='<div class="working" role="status"><i></i>'+(t.attachment?'Reading your passage…':t.mode==='search'?'Looking for sources…':'Working on your reply…')+'</div>';
+ if(t.status==='waiting') answer='<div class="working" role="status"><i></i>'+(t.image?'Examining your image…':t.attachment?'Reading your passage…':t.mode==='search'?'Looking for sources…':'Working on your reply…')+'</div>';
  else if(t.status==='error')answer='<div class="problem"><p>'+M.esc(t.error)+'</p>'+button('retry','Retry','arrow',attr,'text-btn')+button('editq','Edit question','pen',attr,'text-btn')+'</div>';
- else answer='<div class="answer-text">'+M.markdown(t.reply)+'</div>'+(t.quote?button('practice-line','“'+t.quote+'”','chat','data-i="'+t.line+'"','choice framed'):'')+(t.phone?phoneActions(t,i):'')+sourceRows(t.sources)+(t.unavailable?button('web-fallback','Search in browser','sendout',attr,'text-btn'):'')+'<div class="reply-meta">'+M.esc([t.phone?(t.weatherData?'Weather · MET Norway':'On this phone'):t.unavailable?'Couldn’t verify':(t.searched?'Web search':t.attachment?'Writing':'AI reply'),t.provider].filter(Boolean).join(' · '))+'</div><div class="reply-actions">'+button('to-desk','To Desk','desk',attr,'action-chip')+button('second-look','Second look','compass',attr,'text-btn second-look')+'<button data-action="copy-reply" '+attr+' class="bare" aria-label="Copy reply">'+icon('copy')+'</button><button data-action="more" '+attr+' class="bare" aria-label="More reply actions">'+icon('more')+'</button></div>';
- return '<article class="turn" id="turn-'+i+'"><div class="question">'+(t.attachment?'<small>'+icon('clip')+' Attached passage</small>':'')+M.esc(t.question)+'</div><div class="byline"><span class="mini-mark">N</span> '+M.esc(t.practice==='role'?thread.rehearsal.role:t.practice==='coach'?'Nota · Coach':'Nth Nota AI')+'</div>'+answer+'</article>';
+ else answer='<div class="answer-text">'+M.markdown(t.reply)+'</div>'+(t.canAskText?button('ask-image-text','Ask using screenshot text','pen',attr,'action-chip'):'')+(t.quote?button('practice-line','“'+t.quote+'”','chat','data-i="'+t.line+'"','choice framed'):'')+(t.phone?phoneActions(t,i):'')+sourceRows(t.sources)+(t.unavailable?button('web-fallback','Search in browser','sendout',attr,'text-btn'):'')+'<div class="reply-meta">'+M.esc([t.imageMethod|| (t.phone?(t.weatherData?'Weather · MET Norway':'On this phone'):t.unavailable?'Couldn’t verify':(t.searched?'Web search':t.attachment?'Writing':'AI reply')),t.provider].filter(Boolean).join(' · '))+'</div><div class="reply-actions">'+button('to-desk','To Desk','desk',attr,'action-chip')+button('second-look','Second look','compass',attr,'text-btn second-look')+'<button data-action="copy-reply" '+attr+' class="bare" aria-label="Copy reply">'+icon('copy')+'</button><button data-action="more" '+attr+' class="bare" aria-label="More reply actions">'+icon('more')+'</button></div>';
+ return '<article class="turn" id="turn-'+i+'"><div class="question">'+(t.image?ChatImages.turnPhoto(t,i):'')+(t.attachment?'<small>'+icon('clip')+' Attached passage</small>':'')+M.esc(t.question)+'</div><div class="byline"><span class="mini-mark">N</span> '+M.esc(t.practice==='role'?thread.rehearsal.role:t.practice==='coach'?'Nota · Coach':'Nth Nota AI')+'</div>'+answer+'</article>';
  }).join('')+'</div>';
  }
  if(thread.rehearsal)main.insertAdjacentHTML('afterbegin',Rehearsal.panel());
@@ -139,12 +139,12 @@ function renderChat(scroll=false){
  if(scroll)requestAnimationFrame(()=>main.scrollTop=main.scrollHeight);
 }
 function syncComposer(){
- const attach=!!thread.attachment;
+ const attach=!!thread.attachment, image=!!thread.image;
  $('mode').hidden=!!thread.rehearsal;document.querySelector('[data-action=attach]').hidden=!!thread.rehearsal;
- $('mode').innerHTML=icon(attach?'pen':thread.mode==='search'?'globe':'spark')+(attach?'Writing':thread.mode==='search'?'Web search':'Auto')+icon('down');
- $('passage').innerHTML=attach?button('review','Attached text · '+thread.attachment.length.toLocaleString()+' characters','clip','','attachment'):'';
+ $('mode').innerHTML=icon(image?'image':attach?'pen':thread.mode==='search'?'globe':'spark')+(image?'Image':attach?'Writing':thread.mode==='search'?'Web search':'Auto')+icon('down');
+ $('passage').innerHTML=image?ChatImages.composer():attach?button('review','Attached text · '+thread.attachment.length.toLocaleString()+' characters','clip','','attachment'):'';
  const stopped=!!job; $('send').innerHTML=icon(stopped?'stop':'arrow');$('send').setAttribute('aria-label',stopped?'Stop reply':'Send message');
- $('send').disabled=!stopped&&!thread.draft.trim();
+ $('send').disabled=!stopped&&!thread.draft.trim()&&!image;
  const q=$('question');const width=Math.max(22,Math.floor((q.clientWidth || 315)/8));q.rows=Math.min(4,q.value.split('\n').reduce((n,line)=>n+Math.max(1,Math.ceil(line.length/width)),0));
 }
 function shell(){
@@ -159,7 +159,8 @@ function navigate(dest){
 function chooseThread(t){
  if(t!==thread && LiveChat.active())LiveChat.end();
  if(job && thread!==t)stopJob('Stopped when you switched conversations.');
- flush();thread=t;
+ const previous=thread;flush();thread=t;
+ if(previous!==t&&previous.temporary)ChatImages.removeUnused([previous.image,...previous.turns.map(row=>row.image)]);
  if(t.temporary || !threads.has(t.id))delete prefs.last;else prefs.last=t.id;
  remember();navigate('chat');
 }
@@ -214,27 +215,29 @@ function stopJob(reason='Reply stopped.'){
 }
 function runTurn(t,prior,voice=null){
  if(!voice && LiveChat.active())LiveChat.end();
- const intent=t.attachment||t.practice?null:phoneIntent(t.question,prior[prior.length-1]);
+ const intent=t.image||t.attachment||t.practice?null:phoneIntent(t.question,prior[prior.length-1]);
  const payload=t.practice?Rehearsal.prompt(thread.rehearsal,t,prior):M.request(t,prior);
  if(payload.route==='write'&&payload.prompt.length>16000){notice('Shorten your question or attachment to fit the writing request.');return false;}
  t.status='waiting';delete t.error;job={id:M.id('ask'),turn:t,thread,voice};
  thread.updated=Date.now();saveThread();renderChat(true);
- if(intent){t.phone=true;if(intent.type==='weather')t.wx={value:intent.value,period:intent.period};N.askPhone(job.id,JSON.stringify(intent),voice?voice.id:'',voice?voice.token:'');}
+ if(t.image)N.askImage(job.id,JSON.stringify({id:t.image.id,mode:t.imageMode||'auto',question:t.question,session:voice?.id||'',token:voice?.token||'',history:ChatImages.history(t.image,prior)}));
+ else if(intent){t.phone=true;if(intent.type==='weather')t.wx={value:intent.value,period:intent.period};N.askPhone(job.id,JSON.stringify(intent),voice?voice.id:'',voice?voice.token:'');}
  else if(voice)N.askLive(job.id,JSON.stringify(payload),voice.id,voice.token);
  else N.ask(job.id,JSON.stringify(payload));
  return true;
 }
 function send(){
- if(!job&&!thread.attachment&&Thoughts.command(thread.draft)==='leave it here'){thread.draft='';ConversationTools.bookmark();return;}
+ if(!job&&!thread.image&&!thread.attachment&&Thoughts.command(thread.draft)==='leave it here'){thread.draft='';ConversationTools.bookmark();return;}
  if(job){stopJob();return;}
- const question=thread.draft.trim();if(!question)return;
- if(!thread.attachment){const origin=thread,local=Studio.command(question);if(local){origin.draft='';saveThread(origin);if(page==='chat'&&origin===thread){renderChat();}if(local.say)notice(local.say);return;}}
- if(!N.cloud()&&(thread.rehearsal||thread.attachment||!phoneIntent(question,thread.turns[thread.turns.length-1]))){consentDialog();return;}
+ const question=thread.draft.trim()||(thread.image?'What can you tell me about this image?':'');if(!question)return;
+ if(!thread.image&&!thread.attachment){const origin=thread,local=Studio.command(question);if(local){origin.draft='';saveThread(origin);if(page==='chat'&&origin===thread){renderChat();}if(local.say)notice(local.say);return;}}
+ if(!N.cloud()&&(thread.image?['cloud','text'].includes(thread.imageMode):(thread.rehearsal||thread.attachment||!phoneIntent(question,thread.turns[thread.turns.length-1])))){consentDialog();return;}
  if(question.length>2000){notice('Questions can contain up to 2,000 characters.');return;}
  submitQuestion(question,thread.attachment,null);
 }
 function submitQuestion(question,attachment,voice){
  const t={question,attachment,spoken:!!voice,mode:thread.mode,status:'waiting',sources:[]};
+ if(thread.image){t.image=thread.image;t.imageMode=thread.imageMode||'auto';}
  if(attachment&&M.request(t,[]).prompt.length>16000){notice('Shorten your question or attachment to fit the writing request.');return false;}
  if(thread.rehearsal){
   if(attachment){notice('Start a regular chat to use an attachment.');return false;}
@@ -253,6 +256,7 @@ function fork(i,edit=false){
  child.title=(original.title.replace(/^Branch · /,'')).slice(0,56);
  child.title='Branch · '+child.title;
  child.turns=JSON.parse(JSON.stringify(original.turns.slice(0,i+(edit?0:1))));
+ if(t.image){child.image=t.image;child.imageMode=t.imageMode||'auto';}
  if(edit){child.draft=t.question;child.attachment=t.attachment||'';child.mode=t.mode;}
  chooseThread(child);saveThread();renderChat(true);if(edit)$('question').focus();else notice('New branch opened. Your original chat is intact.');
 }
@@ -289,7 +293,7 @@ function setDraft(text){if(sheet)closeSheet();thread.draft=text;saveThread();ren
 function newMenu(){
  modal('New conversation',(thread.turns.length?button('bookmark','Leave it here','note'):'')+button('start','Regular chat','chat')+button('temporary','Temporary chat','eye')+Studio.buttons()+'<p class="desc">Temporary chats stay out of History. You can still choose to save an individual answer to Desk.</p>');
 }
-function startThread(temp){if(thread.temporary&&(thread.turns.length||thread.draft||thread.attachment)){pendingTemp=temp;confirmAction('Leave temporary chat?','Its conversation and draft will be discarded. Cards you saved are on your Desk.','discard-temp','Leave and start chat');}else chooseThread(M.newThread(temp));}
+function startThread(temp){if(thread.temporary&&(thread.turns.length||thread.draft||thread.attachment||thread.image)){pendingTemp=temp;confirmAction('Leave temporary chat?','Its conversation and draft will be discarded. Cards you saved are on your Desk.','discard-temp','Leave and start chat');}else chooseThread(M.newThread(temp));}
 let pendingTemp=false;
 document.addEventListener('click',event=>{
  const el=event.target.closest('[data-action]');if(!el)return;
@@ -350,12 +354,23 @@ document.addEventListener('click',event=>{
  case 'web-fallback':N.openSource('https://www.google.com/search?q='+encodeURIComponent(thread.turns[i].question));break;
  case 'source':if(M.safeUrl(el.dataset.url))N.openSource(el.dataset.url);break;
  case 'mode':
+  if(thread.image){ChatImages.preview();N.imageStatus();break;}
   if(thread.attachment){reviewAttachment();break;}
   modal('Answer mode',button('set-mode','Auto','spark','data-val="auto"')+'<p class="option-help">Let the service choose when to look something up.</p>'+button('set-mode','Web search','globe','data-val="search"')+'<p class="option-help">Request a sourced answer from the web.</p>');break;
  case 'set-mode':thread.mode=v;saveThread();closeSheet();syncComposer();break;
- case 'attach':case 'review':reviewAttachment();break;
+ case 'attach':ChatImages.menu();break;
+ case 'pick-image':ChatImages.pick();break;
+ case 'preview-image':ChatImages.preview();N.imageStatus();break;
+ case 'turn-image':ChatImages.preview(i);break;
+ case 'reuse-image':ChatImages.reuse(i,false);break;
+ case 'ask-image-text':ChatImages.reuse(i,true);break;
+ case 'setup-vision':N.setupVision();break;
+ case 'open-shared-image':chooseThread(M.newThread());N.acceptSharedImage(thread.id,false);break;
+ case 'image-mode':ChatImages.switchMode(v);break;
+ case 'detach-image':ChatImages.detach();if(sheet)closeSheet();break;
+ case 'review':reviewAttachment();break;
  case 'pick':N.pick(thread.id);break;
- case 'apply-attachment':thread.attachment=$('attachment-editor').value.trim();saveThread();closeSheet();syncComposer();$('question').focus();break;
+ case 'apply-attachment':if(thread.image&&$('attachment-editor').value.trim())ChatImages.detach();thread.attachment=$('attachment-editor').value.trim();saveThread();closeSheet();syncComposer();$('question').focus();break;
  case 'remove-attachment':thread.attachment='';saveThread();closeSheet();syncComposer();break;
  case 'live-menu':LiveChat.menu();break;
  case 'live-consent':N.consent(true);LiveChat.menu();break;
@@ -388,7 +403,7 @@ document.addEventListener('click',event=>{
  case 'voice':LiveChat.end();N.dictate(thread.id);break;
  case 'retry':
   if(job){notice('Finish or stop the current reply first.');break;}
-  if(!N.cloud()&&(thread.turns[i].attachment||!phoneIntent(thread.turns[i].question,thread.turns[i-1]))){consentDialog();break;}
+  if(!N.cloud()&&(thread.turns[i].image?['cloud','text'].includes(thread.turns[i].imageMode):(thread.turns[i].attachment||!phoneIntent(thread.turns[i].question,thread.turns[i-1])))){consentDialog();break;}
   if(i<thread.turns.length-1){fork(i,true);send();}else runTurn(thread.turns[i],thread.turns.slice(0,i));
   break;
  case 'editq':fork(i,true);break;
@@ -429,10 +444,11 @@ document.addEventListener('click',event=>{
  case 'export':case 'share-item':{const it=itemFromMenu(),text=itemText(it);closeSheet();if(action==='share-item')N.share(text);else N.exportFile(it.title.replace(/[^\w .-]/g,'_').slice(0,72)||'Nth Nota',text);break;}
  case 'confirm-delete':confirmAction('Delete this '+(cards.has(menuId)?'card':'chat')+'?','This removes “'+itemFromMenu().title+'” from this device.','delete','Delete');break;
  case 'delete':{
-   const isCard=cards.has(menuId);
+   const isCard=cards.has(menuId),removed=threads.get(menuId);
    if(!isCard&&menuId===thread.id){if(job)stopJob();thread=M.newThread();delete prefs.last;remember();}
    if(!persist(menuId,null))break;
    (isCard?cards:threads).delete(menuId);if(isCard && card && card.id===menuId)card=null;
+   if(removed)ChatImages.removeUnused([removed.image,...removed.turns.map(row=>row.image)]);
    navigate(isCard?'desk':'history');break;
  }
  }
@@ -472,6 +488,7 @@ document.addEventListener('keydown',e=>{
 });
 document.addEventListener('visibilitychange',()=>{if(document.hidden)flush();});
 window.notaEvent=(event,...args)=>{
+ if(ChatImages.event(event,args))return;
  if(event==='phoneStatus'){if(sheet==='phone')phoneSetup(phoneStep);return;}
  if(event==='previewStopped'){if(previewToken){previewToken='';const el=$('voice-preview-label');if(el)el.textContent='Preview voice';}return;}
  if(event==='preview'){
@@ -499,6 +516,7 @@ window.notaEvent=(event,...args)=>{
  else if(event==='answer'){
    try{const data=JSON.parse(args[1]);if(typeof data.text!=='string'||!data.text.trim())throw Error();
    const reply=t.practice==='coach'?Rehearsal.coaching(t,active.thread.turns.slice(0,active.thread.turns.indexOf(t)),data.text):data.text;
+   if(t.image){t.imageMethod=data.imageMethod;t.canAskText=!!data.canAskText;}
    Object.assign(t,{status:'ok',reply,sources:M.sources(data.sources),provider:({groq:'Groq',cloudflare:'Cloudflare'})[data.provider]||'',unavailable:!!data.unavailable,searched:!!data.searched});}
    catch(_){t.status='error';t.error=t.practice==='coach'?'Couldn’t match this feedback to an exact line. Retry coaching.':'Couldn’t read this reply. Try again.';}
  }
