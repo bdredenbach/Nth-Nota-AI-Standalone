@@ -36,3 +36,13 @@ new='''await(()->{
         },"Code copy lost its whitespace or contents");'''
 if c.count(old)!=1:raise RuntimeError("Clipboard check moved")
 p.write_text(c.replace(old,new))
+
+p = next(tests.rglob("Nota096Smoke.java"))
+c = p.read_text()
+old='main(()->button("Copy code").performClick());'
+new='''await(()->activity.hasWindowFocus()
+            && !activity.getWindow().getDecorView().getRootWindowInsets().isVisible(android.view.WindowInsets.Type.ime()),
+            "Chat did not regain focus after keyboard closed");
+        main(()->button("Copy code").performClick());'''
+if c.count(old)!=1:raise RuntimeError("Copy code button moved")
+p.write_text(c.replace(old,new))
