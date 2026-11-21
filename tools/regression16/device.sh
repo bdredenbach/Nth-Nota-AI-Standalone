@@ -32,6 +32,7 @@ suite(){
  fi
 }
 connect
+suite quality-final
 suite voice-final
 adb exec-out screencap -p > "$QA_DIR/chat.png"
 adb logcat -d -b crash > "$QA_DIR/crashes.txt"

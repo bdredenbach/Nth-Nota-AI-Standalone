@@ -54,7 +54,7 @@ test('recent naming questions can use a previous reply without inventing history
  assert.equal(model.request(q,[]).route,'write');
  const earlier=[{question:'I named it Amber Comet.',reply:'Amber Comet',status:'ok'}];
  const req=model.request(q,earlier);
- assert.equal(req.route,'write');assert.match(req.prompt,/Amber Comet/);assert.match(req.prompt,/does not contain/);
+ assert.equal(req.route,'write');assert.match(req.prompt,/Amber Comet/);assert.match(req.prompt,/neither source contains/);
  assert.equal(model.request({...q,mode:'search'},earlier).route,'chat');
 });
 
@@ -64,4 +64,11 @@ test('self-contained recipes and conversions use the existing writing service an
   assert.equal(model.request({mode:'search',question},[]).route,'chat');
  }
  for(const question of ['Convert 200 dollars into euros.', 'How much do two cups of rice cost at current prices?', 'I have eggs. Suggest a meal and verify the latest recalls.'])assert.equal(model.request({mode:'auto',question},[]).route,'chat');
+});
+
+test('downloadable lists keep invented details out of the instructions and time budgets include breaks',()=>{
+ const file=model.request({question:'Create a Markdown file with three travel items.',makeFile:'x'},[]);
+ assert.match(file.prompt,/exactly N top-level items/);assert.match(file.prompt,/Leave unspecified bookings/);
+ const timed=model.request({mode:'auto',question:'Break a 45-minute study session into three blocks, including breaks.'},[]);
+ assert.equal(timed.route,'write');assert.match(timed.prompt,/sum equals/);
 });

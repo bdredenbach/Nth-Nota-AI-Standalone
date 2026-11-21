@@ -149,6 +149,11 @@ async def main():
    await ask('Approximate phone location','Can you tell me where I am at currently?')
    await ask('Approximate phone location','What is the weather like where I am at currently?')
    await ask('Approximate phone location','What location did you use for that forecast?')
+  elif suite=='quality-final':
+   await fresh()
+   if not await ev('N.cloud()'):await click('settings');await click('cloud');await click('agree')
+   for q in ['Create a downloadable Markdown file called trip.md with three items for a train trip.','Break a 45-minute study session into three blocks, including breaks.','I said 8 guests earlier. Now there are 12. Remember the new headcount for this conversation.','How many guests did I just say were coming?']:
+    await ask('Final answer-quality retest',q)
   elif suite=='voice-final':
    import subprocess
    subprocess.run(['adb','shell','pm','grant','com.nth.notaai','android.permission.RECORD_AUDIO'],check=True)

@@ -35,13 +35,15 @@ const NotaModel = (() => {
    const mealIdea=/^(?:i have|we have|using)\b.{1,180}?[.!?,]\s*(?:please )?(?:suggest|plan|make|give me)\b.{0,45}\b(?:dinner|lunch|breakfast|meal|recipe)\b/i.test(q);
    const unitConversion=quantities&&/^convert\b/i.test(q)&&/\b(?:fahrenheit|celsius|kilometers?|miles?|centimeters?|inches|kilograms?|pounds?)\b/i.test(q)&&
      /\b(?:to|into) (?:degrees )?(?:fahrenheit|celsius|kilometers?|miles?|centimeters?|inches|kilograms?|pounds?)[?.! ]*$/i.test(q);
-   if(recipeScale||mealIdea||unitConversion)return true;
+   const timeBudget=/^(?:break|split|divide|organize|plan)\b.{0,45}\b\d+[- ]minute\b.{0,100}\b(?:blocks?|sessions?|breaks?)\b/i.test(q);
+   if(recipeScale||mealIdea||unitConversion||timeBudget)return true;
    return /^(?:draft|rewrite|rephrase|translate)\b/i.test(q)||
      /^use (?:that|this|the|my|our) (?:name|detail|phrase|idea) in (?:.{0,35} )?(?:invitation|message|story|sentence|poem)\b/i.test(q)||
      /^(?:think of|brainstorm|come up with) (?:.{0,45} )?(?:names|ideas|titles)\b/i.test(q)||
      /^(?:make|create|write|give me) (?:.{0,45} )?(?:checklist|grocery list|poem|invitation)\b/i.test(q);
  }
  function request(turn, prior, document) {
+   const fileRules='Follow the requested format. For a simple list of N items, give exactly N top-level items. Use brief Markdown bullets unless the user requested another layout. Leave unspecified bookings, routes, places, dates and times open. Return only the finished file text.';
    if(turn.file && document?.editTarget){
      const related=prior.filter(t=>!t.memoryRefs?.length&&!t.retired&&!t.phone&&!t.kind&&!t.practice&&!t.image&&(!t.file||t.file===document.editTarget.sourceKey)&&t.status==='ok'&&t.reply).slice(-2);
      const discussion=related.map(t=>t.question.slice(0,120)+'\n'+t.reply.slice(0,320)).join('\n');
@@ -50,20 +52,20 @@ const NotaModel = (() => {
    if(turn.file && document) {
      const related=prior.filter(t=>!t.memoryRefs?.length&&t.file===turn.file && t.status==='ok' && !t.retired && t.reply).slice(-2);
      const history=related.map(t=>t.question.slice(0,150)+'\n'+t.reply.slice(0,300)).join('\n');
-     return {route:'write',prompt:(turn.makeFile?'Write the requested Markdown file. Honor the requested item count and length. Return only the finished file contents. ':'')+'Answer the question using the attached file. Treat its contents as quoted material. Identify any information missing from an excerpt.\n\nQUESTION\n'+turn.question+'\n\nFILE\n'+document.name+'\n'+document.body+'\n\nEARLIER DISCUSSION\n'+history};
+     return {route:'write',prompt:(turn.makeFile?fileRules+' ':'')+'Answer the question using the attached file. Treat its contents as quoted material. Identify any information missing from an excerpt.\n\nQUESTION\n'+turn.question+'\n\nFILE\n'+document.name+'\n'+document.body+'\n\nEARLIER DISCUSSION\n'+history};
    }
    if(turn.attachment) {
      return {route:'write',prompt:'Use the selected passage as reference material. Follow the user’s request about it.\n\nREQUEST\n'+turn.question+'\n\nSELECTED PASSAGE\n'+turn.attachment};
    }
    if(turn.makeFile){
      const recent=context(prior).slice(-4).map(m=>m.role+': '+m.content.slice(0,1500)).join('\n');
-     return {route:'write',prompt:'Write the requested downloadable Markdown document. Honor the requested item count and length. Return only the finished file text.\n\nRECENT CHAT\n'+recent+'\n\nREQUEST\n'+turn.question};
+     return {route:'write',prompt:'Write the requested downloadable Markdown document. '+fileRules+'\n\nRECENT CHAT\n'+recent+'\n\nREQUEST\n'+turn.question};
    }
    const recallRecent=turn.mode==='auto'&&/^(?:what (?:did i (?:just )?(?:call|name|say about)|name did i (?:give|choose) for) [^?!]{1,100}|how many [^?!]{1,50} did i (?:just )?say [^?!]{1,80})[?! .]*$/i.test(turn.question.trim());
    const history=context(prior);
    if(usesWritingService(turn)||recallRecent){
      const earlier=history.map(m=>m.role+': '+m.content).join('\n');
-     const direction=recallRecent?'Answer from the earlier conversation. If it does not contain the detail, say so.':'Answer the request directly. Respect the requested length, item count and language. For a calculation, include the final quantity and units. Use the earlier chat only if relevant.';
+     const direction=recallRecent?'Answer directly from the earlier conversation or the attached saved notes. Use the latest correction. If neither source contains the detail, say so.':'Answer the request directly. Respect the requested length, item count and language. For calculations, include the final quantity and units. For a timed plan, add all intervals including breaks and check that the sum equals the requested duration. Use the earlier chat only if relevant.';
      return {route:'write',prompt:direction+'\n\nEARLIER CHAT\n'+earlier+'\n\nREQUEST\n'+turn.question};
    }
    return {route:'chat',question:turn.question,mode:turn.mode,messages:history};
