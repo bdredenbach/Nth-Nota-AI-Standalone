@@ -149,6 +149,37 @@ async def main():
    await ask('Approximate phone location','Can you tell me where I am at currently?')
    await ask('Approximate phone location','What is the weather like where I am at currently?')
    await ask('Approximate phone location','What location did you use for that forecast?')
+  elif suite=='voice-final':
+   import subprocess
+   subprocess.run(['adb','shell','pm','grant','com.nth.notaai','android.permission.RECORD_AUDIO'],check=True)
+   await fresh()
+   await ask('Voice-build smoke','Am I charging?')
+   await ev("window.qaAudio=[];window.qaNative=window.notaEvent;window.notaEvent=(name,...args)=>{if(name==='live'&&['ready','speaking','spoken','listening','quiet','idle','speechError','ended'].includes(args[1]))qaAudio.push([args[1],args[3]]);return qaNative(name,...args)}")
+   def log(check,value):
+    with (qa/'voice.jsonl').open('a') as f:f.write(json.dumps({'check':check,'value':value})+'\n')
+   for mode in ['chat','dot']:
+    await ev("qaAudio.length=0")
+    await click('live-menu');await click('live-start','[data-val="'+mode+'"]')
+    await asyncio.sleep(3.5)
+    state=await ev("({open:!$('live-panel').hidden&&LiveChat.active(),expanded:LiveChat.expanded(),label:$('live-state').innerText,events:qaAudio.slice()})")
+    log(mode+' after recognizer starts',state)
+    assert state['open'],state
+    assert state['expanded']==(mode=='dot'),state
+    await ev("document.querySelector('[data-action=live-switch]').click()")
+    assert (await ev("LiveChat.expanded()"))!=(mode=='dot')
+    await ev("document.querySelector('[data-action=live-end]').click()")
+    assert await ev("!LiveChat.active()")
+   await click('desk');await click('blank-card');await click('create-card','[data-val=Checklist]');await click('add-item')
+   await ev("(()=>{const x=document.querySelector('.check-text');x.value='Pack the map.';x.dispatchEvent(new Event('input',{bubbles:true}))})()")
+   await ev("qaAudio.length=0");await click('walk-start')
+   for _ in range(170):
+    if await ev("qaAudio.some(x=>['spoken','speechError','ended'].includes(x[0]))"):break
+    await asyncio.sleep(.45)
+   await asyncio.sleep(2)
+   state=await ev("({open:LiveChat.active(),label:$('live-state').innerText,events:qaAudio.slice()})")
+   log('Spoken checklist and microphone return',state)
+   assert state['open'] and any(e[0]=='spoken' for e in state['events']),state
+   await ev("document.querySelector('[data-action=live-end]').click()")
   elif suite=='interaction':
    import subprocess
    def adb(*args):return subprocess.run(['adb',*args],text=True,capture_output=True,check=True,timeout=25).stdout.strip()

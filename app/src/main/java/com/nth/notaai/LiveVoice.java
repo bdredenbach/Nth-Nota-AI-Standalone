@@ -85,17 +85,32 @@ final class LiveVoice {
             end(session, "No Android speech recognition service is available. Enable a speech service or type your message.");
             return;
         }
-        final String owner = session;
+        host.event(session, "ready", "", "");
+    }
+
+    // The recognition service may take audio focus for its listening prompt.
+    // Hold focus only for Nota's spoken reply and fence callbacks by playback token.
+    private boolean requestPlaybackFocus(String id, String token) {
+        releasePlaybackFocus();
+        if (audio == null) return false;
         AudioAttributes attrs = new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ASSISTANT)
             .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build();
-        focus = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
-            .setAudioAttributes(attrs).setOnAudioFocusChangeListener(change -> {
-                if (change < 0 && matches(owner)) end(owner, "Live voice ended because another app needs audio.");
+        AudioFocusRequest request = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+            .setAudioAttributes(attrs).setWillPauseWhenDucked(true)
+            .setOnAudioFocusChangeListener(change -> {
+                if (change < 0 && matches(id) && speech.equals(token))
+                    end(id, "Live voice ended because another app needs audio.");
             }, main).build();
-        if (audio == null || audio.requestAudioFocus(focus) != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
-            end(owner, "Audio is busy. Try live voice again when it’s available."); return;
-        }
-        host.event(owner, "ready", "", "");
+        if (audio.requestAudioFocus(request) != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) return false;
+        focus = request;
+        return true;
+    }
+
+    private void releasePlaybackFocus() {
+        if (focus == null) return;
+        AudioFocusRequest request = focus;
+        focus = null;
+        audio.abandonAudioFocusRequest(request);
     }
 
     void resumed() {
@@ -116,6 +131,7 @@ final class LiveVoice {
         cancelCapture();
         speech = "";
         output.stop();
+        releasePlaybackFocus();
         capture = token;
         try {
             if (onDevice && Build.VERSION.SDK_INT >= 31) recognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(activity);
@@ -217,13 +233,18 @@ final class LiveVoice {
         return true;
     }
     void interrupt(String id) {
-        if (matches(id)) { cancelCapture(); speech = ""; output.stop(); }
+        if (matches(id)) { cancelCapture(); speech = ""; output.stop(); releasePlaybackFocus(); }
     }
 
     void speak(String id, String token, String text) {
         if (!usable(id)) return;
         cancelCapture();
         speech = token;
+        if (!requestPlaybackFocus(id, token)) {
+            speech = "";
+            host.event(id, "speechError", token, "Audio is busy. The reply is in Chat.");
+            return;
+        }
         output.play(text, new SpeechOutput.Listener() {
             boolean current() { return matches(id) && speech.equals(token); }
             @Override public void started() { if (current()) host.event(id, "speaking", token, ""); }
@@ -234,6 +255,7 @@ final class LiveVoice {
             @Override public void finished(boolean success) {
                 if (!current()) return;
                 speech = "";
+                releasePlaybackFocus();
                 host.event(id,success ? "spoken" : "speechError",token,success ? "" : "Couldn’t play this voice. The reply is in Chat. You can switch voices in Settings.");
             }
         });
@@ -247,8 +269,7 @@ final class LiveVoice {
         cancelCapture();
         speech = "";
         output.stop();
-        if (focus != null && audio != null) audio.abandonAudioFocusRequest(focus);
-        focus = null;
+        releasePlaybackFocus();
         host.ended(old);
         host.event(old, "ended", "", reason);
     }
