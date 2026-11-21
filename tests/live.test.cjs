@@ -25,7 +25,7 @@ function conversation() {
     speakLive:(id,t,text)=>calls.push(['speak',id,t,text])
   };
   const runtime = {
-    Thoughts:require('../app/src/main/assets/thoughts.js'),ConversationTools:{handle:()=>null},document:{getElementById:element,activeElement:element('focus')}, $:element,
+    Thoughts:require('../app/src/main/assets/thoughts.js'),Predictions:{voice:()=>null},Studio:{command:()=>null},ConversationTools:{handle:()=>null},document:{getElementById:element,activeElement:element('focus')}, $:element,
     M:{id:p=>p+(++counter),forSpeech:require('../app/src/main/assets/model.js').forSpeech}, N:bridge, page:'chat', job:null, thread:{id:'thread-test'},
     submitQuestion:(text,attachment,voice)=>{calls.push(['ask',text,attachment,voice]);return true;},
     closeSheet(){},stopJob(){},notice(){},requestAnimationFrame:cb=>cb(),

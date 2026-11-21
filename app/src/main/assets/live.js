@@ -17,8 +17,8 @@ const LiveChat = (() => {
   entry.hidden=page!=='chat'||!!session;
   if(!session)return;
   const s=session, walk=s.mode==='walk';
-  $('live-tools').hidden=walk;$('walk-tools').hidden=!walk;$('voice-switch').hidden=walk;
-  $('voice-label').textContent=walk?'Checklist walkthrough':thread.ramble?'Ramble':'Live voice';
+  $('live-tools').hidden=walk||!!thread.rehearsal;$('walk-tools').hidden=!walk;$('voice-switch').hidden=walk;
+  $('voice-label').textContent=walk?'Checklist walkthrough':thread.rehearsal?'Rehearsal room':thread.ramble?'Ramble':'Live voice';
   $('ramble-toggle').textContent=thread.ramble?'Finish ramble':'Let me ramble';
   p.dataset.state=s.state;
   p.classList.toggle('expanded',expanded);
@@ -145,7 +145,7 @@ const LiveChat = (() => {
   if(hold && s.unsent){text=s.unsent+' Hold that thought';}
   if(fromMic||hold)s.unsent='';
   if(fromMic && s.pinNext){s.pinNext=false;if(!Thoughts.pinRequest(text))text+=' Hold that thought';}
-  const result=s.mode==='walk'?Walkthrough.handle(s,text):ConversationTools.handle(text);
+  const result=s.mode==='walk'?Walkthrough.handle(s,text):(fromMic?Predictions.voice(s,text):null)||Studio.command(text,true)||(thread.rehearsal?null:ConversationTools.handle(text));
   if(!result)return false;
   if(session!==s)return true;
   if(!fromMic&&hold&&['thinking','loading','speaking'].includes(s.state))return true;
@@ -184,7 +184,7 @@ const LiveChat = (() => {
     if(localCommand(text,true))return;
     if(job){pauseMic('Another reply is in progress.');return;}
     if(text.length>2000){pauseMic('That turn was too long to send. Try a shorter question.');return;}
-    if(!N.cloud()&&!phoneIntent(text,thread.turns[thread.turns.length-1])){s.unsent=text;pauseMic('Cloud questions are off. Enable them in Settings for general AI questions, or resume to ask about your phone.');return;}
+    if(!N.cloud()&&(thread.rehearsal||!phoneIntent(text,thread.turns[thread.turns.length-1]))){s.unsent=text;pauseMic('Cloud questions are off. Enable them in Settings for general AI questions, or resume to ask about your phone.');return;}
     s.token='';
     s.silences=0;
     s.state='thinking';

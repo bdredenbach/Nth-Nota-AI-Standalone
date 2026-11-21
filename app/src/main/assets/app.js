@@ -21,7 +21,7 @@ function persist(key,value) {
 function remember(){persist('prefs',prefs);}
 function saveThread(t=thread){
  if(t.temporary)return;
- if(!t.turns.length&&!t.draft.trim()&&!t.attachment&&!t.bookmark&&!t.ramble && !threads.has(t.id))return;
+ if(!t.turns.length&&!t.draft.trim()&&!t.attachment&&!t.bookmark&&!t.ramble&&!t.rehearsal && !threads.has(t.id))return;
  threads.set(t.id,t);persist(t.id,t);
  if(t===thread && prefs.last!==t.id){prefs.last=t.id;remember();}
 }
@@ -119,18 +119,20 @@ function emptyHome(){
 }
 function renderChat(scroll=false){
  const main=$('main');
- if(!thread.turns.length){main.innerHTML=emptyHome();}
+ if(!thread.turns.length){main.innerHTML=thread.rehearsal?'':emptyHome();}
  else{
  main.innerHTML='<div class="chat-body"><div class="context-label">'+icon(thread.temporary?'eye':'chat')+M.esc(thread.temporary?'Temporary chat':thread.title)+'</div>'+thread.turns.map((t,i)=>{
+ if(t.retired)return '';
  if(t.kind)return ConversationTools.localTurn(t,i);
  const attr='data-i="'+i+'"';
  let answer;
  if(t.status==='waiting') answer='<div class="working" role="status"><i></i>'+(t.attachment?'Reading your passage…':t.mode==='search'?'Looking for sources…':'Working on your reply…')+'</div>';
  else if(t.status==='error')answer='<div class="problem"><p>'+M.esc(t.error)+'</p>'+button('retry','Retry','arrow',attr,'text-btn')+button('editq','Edit question','pen',attr,'text-btn')+'</div>';
- else answer='<div class="answer-text">'+M.markdown(t.reply)+'</div>'+(t.phone?phoneActions(t,i):'')+sourceRows(t.sources)+(t.unavailable?button('web-fallback','Search in browser','sendout',attr,'text-btn'):'')+'<div class="reply-meta">'+M.esc([t.phone?(t.weatherData?'Weather · MET Norway':'On this phone'):t.unavailable?'Couldn’t verify':(t.searched?'Web search':t.attachment?'Writing':'AI reply'),t.provider].filter(Boolean).join(' · '))+'</div><div class="reply-actions">'+button('to-desk','To Desk','desk',attr,'action-chip')+button('second-look','Second look','compass',attr,'text-btn second-look')+'<button data-action="copy-reply" '+attr+' class="bare" aria-label="Copy reply">'+icon('copy')+'</button><button data-action="more" '+attr+' class="bare" aria-label="More reply actions">'+icon('more')+'</button></div>';
- return '<article class="turn" id="turn-'+i+'"><div class="question">'+(t.attachment?'<small>'+icon('clip')+' Attached passage</small>':'')+M.esc(t.question)+'</div><div class="byline"><span class="mini-mark">N</span> Nth Nota AI</div>'+answer+'</article>';
+ else answer='<div class="answer-text">'+M.markdown(t.reply)+'</div>'+(t.quote?button('practice-line','“'+t.quote+'”','chat','data-i="'+t.line+'"','choice framed'):'')+(t.phone?phoneActions(t,i):'')+sourceRows(t.sources)+(t.unavailable?button('web-fallback','Search in browser','sendout',attr,'text-btn'):'')+'<div class="reply-meta">'+M.esc([t.phone?(t.weatherData?'Weather · MET Norway':'On this phone'):t.unavailable?'Couldn’t verify':(t.searched?'Web search':t.attachment?'Writing':'AI reply'),t.provider].filter(Boolean).join(' · '))+'</div><div class="reply-actions">'+button('to-desk','To Desk','desk',attr,'action-chip')+button('second-look','Second look','compass',attr,'text-btn second-look')+'<button data-action="copy-reply" '+attr+' class="bare" aria-label="Copy reply">'+icon('copy')+'</button><button data-action="more" '+attr+' class="bare" aria-label="More reply actions">'+icon('more')+'</button></div>';
+ return '<article class="turn" id="turn-'+i+'"><div class="question">'+(t.attachment?'<small>'+icon('clip')+' Attached passage</small>':'')+M.esc(t.question)+'</div><div class="byline"><span class="mini-mark">N</span> '+M.esc(t.practice==='role'?thread.rehearsal.role:t.practice==='coach'?'Nota · Coach':'Nth Nota AI')+'</div>'+answer+'</article>';
  }).join('')+'</div>';
  }
+ if(thread.rehearsal)main.insertAdjacentHTML('afterbegin',Rehearsal.panel());
  const footer=ConversationTools.footer();if(footer)main.insertAdjacentHTML('beforeend',footer);
  $('question').value=thread.draft;
  syncComposer();
@@ -138,6 +140,7 @@ function renderChat(scroll=false){
 }
 function syncComposer(){
  const attach=!!thread.attachment;
+ $('mode').hidden=!!thread.rehearsal;document.querySelector('[data-action=attach]').hidden=!!thread.rehearsal;
  $('mode').innerHTML=icon(attach?'pen':thread.mode==='search'?'globe':'spark')+(attach?'Writing':thread.mode==='search'?'Web search':'Auto')+icon('down');
  $('passage').innerHTML=attach?button('review','Attached text · '+thread.attachment.length.toLocaleString()+' characters','clip','','attachment'):'';
  const stopped=!!job; $('send').innerHTML=icon(stopped?'stop':'arrow');$('send').setAttribute('aria-label',stopped?'Stop reply':'Send message');
@@ -166,7 +169,7 @@ function emptyBoard(isDesk){
 function renderLibrary(full){
  const isDesk=page==='desk';
  if(full)$('main').innerHTML='<div class="library"><div class="page-title"><div><div class="eyebrow"><i></i>On this device</div><h1>'+(isDesk?'Your Desk':'Chat history')+'</h1></div><button class="icon-btn solid" aria-label="'+(isDesk?'Create a card':'New chat')+'" data-action="'+(isDesk?'blank-card':'new')+'">'+icon('plus')+'</button></div><label class="search-box">'+icon('search')+'<input id="filter" aria-label="Search '+(isDesk?'Desk':'history')+'" placeholder="Search '+(isDesk?'your Desk':'conversations')+'"></label>'+(isDesk?'<div id="filters" class="chips"></div>':'')+'<div id="entries"></div></div>';
- if(isDesk)$('filters').innerHTML=['All','Note','Draft','Checklist'].map(k=>button('filter',k,null,'data-val="'+k+'" aria-pressed="'+(typeFilter===k)+'"','pill'+(typeFilter===k?' selected':''))).join('');
+ if(isDesk)$('filters').innerHTML=['All','Note','Draft','Checklist','Prediction'].map(k=>button('filter',k,null,'data-val="'+k+'" aria-pressed="'+(typeFilter===k)+'"','pill'+(typeFilter===k?' selected':''))).join('');
  const all=Array.from((isDesk?cards:threads).values()),q=query.toLowerCase();
  const rows=all.filter(item=>{
   if(isDesk && typeFilter!=='All'&&item.type!==typeFilter)return false;
@@ -181,10 +184,10 @@ function renderLibrary(full){
   return '<div class="entry"><button data-action="'+(isDesk?'open-card':'open-thread')+'" data-id="'+item.id+'"><span class="tile-icon '+(isDesk?tone(item.type):'sage')+'">'+icon(isDesk?typeIcon(item.type):'chat')+'</span><span><strong>'+M.esc(item.title)+'</strong><small>'+subtitle+' · '+statDate(item.updated)+'</small></span></button>'+'<button class="bare" aria-label="Options for '+M.esc(item.title)+'" data-action="'+(isDesk?'card-menu':'thread-menu')+'" data-id="'+item.id+'">'+icon('more')+'</button></div>';
  }).join('');
 }
-const typeIcon=type=>type==='Checklist'?'list':type==='Draft'?'pen':'note';
+const typeIcon=type=>type==='Prediction'?'compass':type==='Checklist'?'list':type==='Draft'?'pen':'note';
 const tone=type=>type==='Checklist'?'sage':type==='Draft'?'clay':'lavender';
 function cardTypes(i){
- sheetTurn=i;modal(i<0?'Create a card':'Save to Desk','<p class="desc">'+(i<0?'Choose what you want to make.':'Keep an editable copy on this device. Source links travel with the answer.')+'</p>'+['Note','Draft','Checklist'].map(k=>button('create-card',k,typeIcon(k),'data-val="'+k+'"')).join(''));
+ sheetTurn=i;modal(i<0?'Create a card':'Save to Desk','<p class="desc">'+(i<0?'Choose what you want to make.':'Keep an editable copy on this device. Source links travel with the answer.')+'</p>'+['Note','Draft','Checklist'].map(k=>button('create-card',k,typeIcon(k),'data-val="'+k+'"')).join('')+(i<0?button('prediction-new','Call it now','compass')+button('phrases','My phrases','wave'):''));
 }
 function newCard(type,index){
  const t=index<0?null:thread.turns[index],body=t?t.reply:'';
@@ -194,10 +197,11 @@ function newCard(type,index){
 function putCard(){if(!card)return;card.updated=Date.now();persist(card.id,card);}
 function renderCard(){
  const c=card,main=$('main');if(!c){navigate('desk');return;}
- main.innerHTML='<div class="library editor">'+button('desk','Desk','back','','text-btn')+'<div class="editor-label"><span class="tile-icon '+tone(c.type)+'">'+icon(typeIcon(c.type))+'</span><span>'+c.type+'</span><span class="spacer"></span><button class="bare" aria-label="Card options" data-action="card-menu" data-id="'+c.id+'">'+icon('more')+'</button></div><textarea id="card-title" rows="1" class="title-input" aria-label="Card title" maxlength="120"></textarea><div id="card-content"></div>'+(c.type==='Checklist'?button('walk-start','Walk me through it','wave','','action-chip'):button('edit-passage','Change just that','pen','','action-chip'))+(c.undoEdit?button('undo-edit','Undo last edit','back','','text-btn'):'')+button('ask-card','Ask about this card','spark','','action-chip')+sourceRows(c.sources)+(c.origin && threads.has(c.origin)?button(Number.isInteger(c.sourceIndex)?'source-line':'open-thread',Number.isInteger(c.sourceIndex)?'Go to spoken line':'Original conversation','chat','data-id="'+c.origin+'" data-i="'+c.sourceIndex+'"','text-btn'):'')+'</div>';
+ main.innerHTML='<div class="library editor">'+button('desk','Desk','back','','text-btn')+'<div class="editor-label"><span class="tile-icon '+tone(c.type)+'">'+icon(typeIcon(c.type))+'</span><span>'+c.type+'</span><span class="spacer"></span><button class="bare" aria-label="Card options" data-action="card-menu" data-id="'+c.id+'">'+icon('more')+'</button></div><textarea id="card-title" rows="1" class="title-input" aria-label="Card title" maxlength="120"></textarea><div id="card-content"></div>'+(c.type==='Checklist'?button('walk-start','Walk me through it','wave','','action-chip'):c.type==='Prediction'?'':button('edit-passage','Change just that','pen','','action-chip'))+(c.undoEdit?button('undo-edit','Undo last edit','back','','text-btn'):'')+button('ask-card','Ask about this card','spark','','action-chip')+sourceRows(c.sources)+(c.origin && threads.has(c.origin)?button(Number.isInteger(c.sourceIndex)?'source-line':'open-thread',Number.isInteger(c.sourceIndex)?'Go to spoken line':'Original conversation','chat','data-id="'+c.origin+'" data-i="'+c.sourceIndex+'"','text-btn'):'')+'</div>';
  $('card-title').value=c.title;fitText($('card-title'));
+ if(c.type==='Prediction'){$('card-content').innerHTML=Predictions.view(c);return;}
  if(c.type==='Checklist'){
- $('card-content').innerHTML='<div id="checklist">'+c.items.map((x,i)=>'<div class="check-row"><input type="checkbox" aria-label="Mark item '+(i+1)+' complete" data-i="'+i+'" '+(x.done?'checked':'')+'><textarea rows="2" class="check-text" data-i="'+i+'" aria-label="Item '+(i+1)+'"></textarea><button class="bare" data-action="remove-item" aria-label="Remove item '+(i+1)+'" data-i="'+i+'">'+icon('close')+'</button></div>'+(x.notes||[]).map(note=>'<p class="step-note">Observation · '+M.esc(note)+'</p>').join('')).join('')+'</div>'+button('add-item','Add item','plus','','text-btn');
+ $('card-content').innerHTML=Phrases.header(c)+'<div id="checklist">'+c.items.map((x,i)=>'<div class="check-row"><input type="checkbox" aria-label="Mark item '+(i+1)+' complete" data-i="'+i+'" '+(x.done?'checked':'')+'><textarea rows="2" class="check-text" data-i="'+i+'" aria-label="Item '+(i+1)+'"></textarea><button class="bare" data-action="remove-item" aria-label="Remove item '+(i+1)+'" data-i="'+i+'">'+icon('close')+'</button></div>'+(x.notes||[]).map(note=>'<p class="step-note">Observation · '+M.esc(note)+'</p>').join('')).join('')+'</div>'+button('add-item','Add item','plus','','text-btn');
  main.querySelectorAll('.check-text').forEach((el,i)=>{el.value=c.items[i].text;fitText(el);});
  }else{$('card-content').innerHTML='<textarea id="card-body" aria-label="Card text" placeholder="Start writing…" maxlength="160000"></textarea>';$('card-body').value=c.body;}
 }
@@ -210,8 +214,8 @@ function stopJob(reason='Reply stopped.'){
 }
 function runTurn(t,prior,voice=null){
  if(!voice && LiveChat.active())LiveChat.end();
- const intent=t.attachment?null:phoneIntent(t.question,prior[prior.length-1]);
- const payload=M.request(t,prior);
+ const intent=t.attachment||t.practice?null:phoneIntent(t.question,prior[prior.length-1]);
+ const payload=t.practice?Rehearsal.prompt(thread.rehearsal,t,prior):M.request(t,prior);
  if(payload.route==='write'&&payload.prompt.length>16000){notice('Shorten your question or attachment to fit the writing request.');return false;}
  t.status='waiting';delete t.error;job={id:M.id('ask'),turn:t,thread,voice};
  thread.updated=Date.now();saveThread();renderChat(true);
@@ -223,13 +227,20 @@ function runTurn(t,prior,voice=null){
 function send(){
  if(!job&&!thread.attachment&&Thoughts.command(thread.draft)==='leave it here'){thread.draft='';ConversationTools.bookmark();return;}
  if(job){stopJob();return;}
- const question=thread.draft.trim();if(!question)return;if(!N.cloud()&&(thread.attachment||!phoneIntent(question,thread.turns[thread.turns.length-1]))){consentDialog();return;}
+ const question=thread.draft.trim();if(!question)return;
+ if(!thread.attachment){const origin=thread,local=Studio.command(question);if(local){origin.draft='';saveThread(origin);if(page==='chat'&&origin===thread){renderChat();}if(local.say)notice(local.say);return;}}
+ if(!N.cloud()&&(thread.rehearsal||thread.attachment||!phoneIntent(question,thread.turns[thread.turns.length-1]))){consentDialog();return;}
  if(question.length>2000){notice('Questions can contain up to 2,000 characters.');return;}
  submitQuestion(question,thread.attachment,null);
 }
 function submitQuestion(question,attachment,voice){
  const t={question,attachment,spoken:!!voice,mode:thread.mode,status:'waiting',sources:[]};
  if(attachment&&M.request(t,[]).prompt.length>16000){notice('Shorten your question or attachment to fit the writing request.');return false;}
+ if(thread.rehearsal){
+  if(attachment){notice('Start a regular chat to use an attachment.');return false;}
+  t.practice=Rehearsal.isCoach(question)?'coach':'role';
+  if(t.practice==='coach'&&!thread.turns.some(row=>row.practice==='role'&&!row.retired&&row.status==='ok')){notice('Practice an exchange before requesting coaching.');return false;}
+ }
  const prior=thread.turns.slice();
  thread.turns.push(t);
  if(thread.turns.length===1 && thread.title==='New chat')thread.title=question.slice(0,65);
@@ -238,6 +249,7 @@ function submitQuestion(question,attachment,voice){
 }
 function fork(i,edit=false){
  const original=thread,t=original.turns[i],child=M.newThread(original.temporary);
+ if(original.rehearsal)child.rehearsal={...original.rehearsal};
  child.title=(original.title.replace(/^Branch · /,'')).slice(0,56);
  child.title='Branch · '+child.title;
  child.turns=JSON.parse(JSON.stringify(original.turns.slice(0,i+(edit?0:1))));
@@ -275,7 +287,7 @@ function replaceDraft(text){
 let pendingDraft='';
 function setDraft(text){if(sheet)closeSheet();thread.draft=text;saveThread();renderChat();$('question').focus();}
 function newMenu(){
- modal('New conversation',(thread.turns.length?button('bookmark','Leave it here','note'):'')+button('start','Regular chat','chat')+button('temporary','Temporary chat','eye')+'<p class="desc">Temporary chats stay out of History. You can still choose to save an individual answer to Desk.</p>');
+ modal('New conversation',(thread.turns.length?button('bookmark','Leave it here','note'):'')+button('start','Regular chat','chat')+button('temporary','Temporary chat','eye')+Studio.buttons()+'<p class="desc">Temporary chats stay out of History. You can still choose to save an individual answer to Desk.</p>');
 }
 function startThread(temp){if(thread.temporary&&(thread.turns.length||thread.draft||thread.attachment)){pendingTemp=temp;confirmAction('Leave temporary chat?','Its conversation and draft will be discarded. Cards you saved are on your Desk.','discard-temp','Leave and start chat');}else chooseThread(M.newThread(temp));}
 let pendingTemp=false;
@@ -283,6 +295,27 @@ document.addEventListener('click',event=>{
  const el=event.target.closest('[data-action]');if(!el)return;
  const action=el.dataset.action,i=Number(el.dataset.i),v=el.dataset.val,id=el.dataset.id;
  switch(action){
+ case 'practice-setup':Rehearsal.setup();break;
+ case 'practice-confirm':Rehearsal.enter();break;
+ case 'practice-start':Rehearsal.start(v==='voice');break;
+ case 'practice-rewind':LiveChat.end();notice(Rehearsal.rewind());break;
+ case 'practice-coach':if(job){notice('Finish or stop the current reply first.');break;}if(!N.cloud()){consentDialog();break;}{const draft=thread.draft;submitQuestion('Coach me','',null);thread.draft=draft;saveThread();renderChat(true);}break;
+ case 'practice-line':{const line=$('turn-'+i);if(line){line.scrollIntoView({block:'center'});line.classList.add('source-highlight');}break;}
+ case 'phrases':Phrases.menu();break;
+ case 'phrase-describe':Phrases.describe();break;
+ case 'phrase-review':Phrases.review();break;
+ case 'phrase-new':Phrases.form();break;
+ case 'phrase-edit':Phrases.form(id);break;
+ case 'phrase-remove':confirmAction('Delete phrase?','Existing checklist runs stay on your Desk.','phrase-remove-confirm','Delete phrase');break;
+ case 'phrase-remove-confirm':Phrases.remove();break;
+ case 'phrase-save':Phrases.save();break;
+ case 'phrase-run':Phrases.run(id);break;
+ case 'phrase-answer':if(!Phrases.answer($('phrase-answer').value))notice('Enter an answer first.');break;
+ case 'prediction-new':Predictions.form();break;
+ case 'prediction-save':Predictions.save();break;
+ case 'prediction-outcome':Predictions.outcome();break;
+ case 'prediction-record':Predictions.record();break;
+ case 'studio-dictate':Studio.dictate(v);break;
  case 'close':closeSheet();break;
  case 'home':case 'chat':navigate('chat');break;
  case 'desk':case 'history':navigate(action);break;
@@ -422,7 +455,7 @@ document.addEventListener('input',e=>{
  else if(target.id==='card-body'){card.body=target.value;delete card.undoEdit;const undo=document.querySelector('[data-action=undo-edit]');if(undo)undo.remove();queueCard();}
  else if(target.classList.contains('check-text')){card.items[Number(target.dataset.i)].text=target.value;queueCard();}
 });
-document.addEventListener('change',e=>{if(e.target.matches('.check-row input[type=checkbox]')){card.items[Number(e.target.dataset.i)].done=e.target.checked;putCard();}});
+document.addEventListener('change',e=>{if(e.target.id==='phrase-template')Phrases.fillSteps();if(e.target.matches('.check-row input[type=checkbox]')){card.items[Number(e.target.dataset.i)].done=e.target.checked;putCard();}});
 $('overlay').addEventListener('click',e=>{if(e.target===$('overlay'))closeSheet();});
 function back(){
  if(LiveChat.expanded()){LiveChat.view(false);return;}
@@ -454,7 +487,7 @@ window.notaEvent=(event,...args)=>{
   chooseThread(M.newThread(true));reviewAttachment(args[0]);return;
  }
  if(event==='file'){incomingFile(args[0],args[1]);return;}
- if(event==='dictated'){if(Revision.dictated(args[0],args[1]))return;if(args[0]===thread.id){const text=(thread.draft+' '+args[1]).trim();if(text.length>2000){notice('Dictation would exceed the message limit.');return;}setDraft(text);}return;}
+ if(event==='dictated'){if(Studio.dictated(args[0],args[1])||Revision.dictated(args[0],args[1]))return;if(args[0]===thread.id){const text=(thread.draft+' '+args[1]).trim();if(text.length>2000){notice('Dictation would exceed the message limit.');return;}setDraft(text);}return;}
  if((event==='answer'||event==='failure')&&Revision.result(event,args[0],args[1]))return;
  if(!job||job.id!==args[0])return;
  const active=job;job=null;const t=active.turn;
@@ -465,8 +498,9 @@ window.notaEvent=(event,...args)=>{
  }
  else if(event==='answer'){
    try{const data=JSON.parse(args[1]);if(typeof data.text!=='string'||!data.text.trim())throw Error();
-   Object.assign(t,{status:'ok',reply:data.text,sources:M.sources(data.sources),provider:({groq:'Groq',cloudflare:'Cloudflare'})[data.provider]||'',unavailable:!!data.unavailable,searched:!!data.searched});}
-   catch(_){t.status='error';t.error='Couldn’t read this reply. Try again.';}
+   const reply=t.practice==='coach'?Rehearsal.coaching(t,active.thread.turns.slice(0,active.thread.turns.indexOf(t)),data.text):data.text;
+   Object.assign(t,{status:'ok',reply,sources:M.sources(data.sources),provider:({groq:'Groq',cloudflare:'Cloudflare'})[data.provider]||'',unavailable:!!data.unavailable,searched:!!data.searched});}
+   catch(_){t.status='error';t.error=t.practice==='coach'?'Couldn’t match this feedback to an exact line. Retry coaching.':'Couldn’t read this reply. Try again.';}
  }
  saveThread(active.thread);if(page==='chat'&&active.thread===thread)renderChat(true);
  else if(page==='history')renderLibrary(false);

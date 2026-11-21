@@ -2,11 +2,19 @@
 
 A standalone Android assistant with two work surfaces. Chat holds a conversation. Desk holds editable notes, drafts and checklists that can outlive that conversation. A saved card carries its source links and opens the original thread while that thread exists. **Ask about this card** sends edits back through a new, reviewable draft.
 
-Version 0.5.0 is a debug-signed testing build. Application ID `com.nth.notaai`. Minimum Android 8.0, target Android 16 / API 36. It can be installed alongside the Nth Nota notes app and the Nth Desktop launchers.
+Version 0.6.0 is a debug-signed testing build. Application ID `com.nth.notaai`. Minimum Android 8.0, target Android 16 / API 36. It can be installed alongside the Nth Nota notes app and the Nth Desktop launchers.
 
 ## Live voice
 
 Tap **Live** in Chat, then choose **Voice in Chat** for the transcript or **Live View** for the animated dot. Allow microphone access when prompted. Enable cloud questions for general AI conversations. Speak, pause, and listen to the reply. The microphone reopens after playback finishes. **Show chat** and **Live View** switch views of the same thread. **Mute mic** pauses capture. **Interrupt** cancels the current answer or stops its playback. **End voice**, typing, opening another screen, or leaving the app ends the session. Android speech recognition handles microphone input. Nota speaks with its bundled Kokoro Heart model. Android handles microphone audio and may use its online speech service. Nth Nota sends recognized text through the existing chat gateway. Saved drafts and attachments are kept separate from spoken turns.
+
+## Rehearsals, phrases and predictions
+
+Open the **New conversation** menu for **Rehearsal room**, **My phrases**, or **Call it now**. Desk’s create menu also offers phrases and predictions.
+
+- **Rehearsal room** lets you choose a partner and a situation, then practice by text or live voice. **Rewind one exchange** keeps the old take available for review. The next reply uses the active dialogue. **Coach me** asks the existing writing service for feedback. A coaching quote links back only when it matches the speaker’s actual words.
+- **My phrases** saves a trigger, an optional opening question and a list of steps. Describe a routine or write the steps yourself. You can copy and edit a Desk checklist. Say or type the saved phrase in a regular chat to start a fresh checklist. Answers and step observations stay on that run. Templates and runs are stored on the device.
+- **Call it now** records a prediction, a result that would change your mind and the time. In Live, Nota asks for the missing information aloud. Reopen the Prediction card on Desk to add a dated observation and verdict. Later observations appear beside the original prediction, which remains available for comparison and Markdown export.
 
 ## Conversation and Desk tools
 

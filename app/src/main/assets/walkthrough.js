@@ -10,6 +10,7 @@ const Walkthrough=(()=>{
   return card&&card.id===s.cardId?card.items.findIndex(item=>!item.done&&item.text.trim()):-1;
  }
  function prompt(s){
+  if(Phrases.awaiting(card))return card.phraseRun.question;
   const i=current(s);
   return i<0?'Checklist complete.':'Step '+(i+1)+' of '+card.items.length+'. '+card.items[i].text;
  }
@@ -18,6 +19,11 @@ const Walkthrough=(()=>{
   if(i<0)return {say:'Checklist complete.',endAfter:true};
   const cmd=Thoughts.command(text);
   if(cmd==='end walkthrough'||cmd==='stop walkthrough'){LiveChat.end();return {};}
+  if(Phrases.awaiting(card)){
+   if(cmd==='repeat')return {say:prompt(s)};
+   if(!Phrases.answer(text))return {say:'Could not save the answer. Please try again.'};
+   return {say:prompt(s)};
+  }
   if(s.noteIndex!=null){
    if(cmd==='cancel'){delete s.noteIndex;return {say:prompt(s)};}
    if(['repeat','done','i found a problem'].includes(cmd))return {say:'Describe the problem on step '+(s.noteIndex+1)+', or say cancel.'};

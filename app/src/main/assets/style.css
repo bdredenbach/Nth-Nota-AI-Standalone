@@ -132,3 +132,9 @@ pre,code{font-family:monospace;background:var(--muted);border-radius:4px;font-si
 .edit-compare section:last-child{background:var(--sage);color:var(--sage-ink)}
 .edit-compare h3,.edit-compare p{margin:0 0 8px}
 @media(max-width:350px){.edit-compare{grid-template-columns:1fr}}
+
+.practice-panel h3{margin:5px 0}
+.practice-panel details{margin-top:10px}
+.phrase-row{display:flex;align-items:center;gap:6px}
+.phrase-row .framed{flex:1;min-width:0}
+.prediction-compare section section{background:transparent;color:inherit;border:0;border-top:1px solid var(--line);border-radius:0;margin-top:12px;padding:10px 0 0}
