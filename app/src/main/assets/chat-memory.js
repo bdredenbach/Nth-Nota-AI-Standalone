@@ -123,7 +123,14 @@ const ChatMemory=(()=>{
  }
  function command(q,voice=false){
   if(thread.rehearsal||thread.ramble)return null;
-  const cmd=model.command(q);if(!cmd)return null;
+  const cmd=model.command(q);
+  if(!cmd){
+   if(thread.temporary||thread.mode==='search'||thread.image||thread.file||thread.attachment)return null;
+   const matches=model.decisionNotes(rows(),q);
+   if(!matches.length)return null;
+   projectView='';
+   return finish(q,matches.length===1?'Here’s the saved decision.':'I found multiple saved notes for that decision.',matches,voice);
+  }
   projectView='';
   if(thread.temporary)return finish(q,'Memory is off in temporary chats.',[],voice);
   if(cmd.scope==='project'&&!group())return finish(q,'Move this chat into a project to use project memory.',[],voice);

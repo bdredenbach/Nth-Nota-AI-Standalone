@@ -26,6 +26,7 @@ final class PhoneHelp {
     private final LocationManager locations;
     private static final Map<String,String> pages=new LinkedHashMap<>();
     static {
+        pages.put("home",Settings.ACTION_HOME_SETTINGS);
         pages.put("phone",Settings.ACTION_SETTINGS); pages.put("wifi",Settings.ACTION_WIFI_SETTINGS);
         pages.put("bluetooth",Settings.ACTION_BLUETOOTH_SETTINGS);pages.put("location",Settings.ACTION_LOCATION_SOURCE_SETTINGS);
         pages.put("display",Settings.ACTION_DISPLAY_SETTINGS);pages.put("battery",Intent.ACTION_POWER_USAGE_SUMMARY);

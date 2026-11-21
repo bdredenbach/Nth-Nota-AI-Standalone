@@ -240,7 +240,9 @@ function runTurn(t,prior,voice=null){
  if(t.image)N.askImage(job.id,JSON.stringify({id:t.image.id,mode:t.imageMode||'auto',question:t.question,session:voice?.id||'',token:voice?.token||'',history:ChatImages.history(t.image,prior)}));
  else if(intent){
   t.phone=true;
-  if(intent.type==='forecastArea'){
+  if(intent.type==='guide'){
+   window.notaEvent('phoneAnswer',job.id,JSON.stringify(phoneGuideReply(intent.value)));
+  }else if(intent.type==='forecastArea'){
    let forecast;
    for(let i=prior.length-1;i>=0;i--){const row=prior[i];if(row.phone&&row.weatherData&&row.status==='ok'&&!row.retired){forecast=row;break;}}
    window.notaEvent('phoneAnswer',job.id,JSON.stringify({text:forecastAreaReply(forecast)}));

@@ -103,3 +103,19 @@ test('natural recall questions never create a memory',()=>{
  assert.match(env.api.command('Can you remember what my iguana is called?').say,/don’t have a saved memory/);
  assert.equal(a.memories.length,1);
 });
+
+test('a question about a saved choice quotes only matching visible topics',()=>{
+ const {env,a,b,c,d}=runtime();
+ env.api.command('Remember that the launch room is Indigo Hall for this project.');
+ env.api.command('Remember that my launch code is lilac.');
+ env.thread=b;
+ assert.match(env.api.command('Which launch room did we pick?').say,/Indigo Hall/);
+ assert.match(env.api.command('What did we settle on for the launch room?').say,/Indigo Hall/);
+ for(const q of ['Which launch code did we pick?', 'Which launch room should we pick?', 'Which launch room budget did we pick?'])assert.equal(env.api.command(q),null);
+ for(const key of ['file','image','attachment']){b[key]='attached';assert.equal(env.api.command('Which launch room did we pick?'),null);delete b[key];}
+ b.mode='search';assert.equal(env.api.command('Which launch room did we pick?'),null);
+ for(const owner of [c,d]){env.thread=owner;assert.equal(env.api.command('Which launch room did we pick?'),null);}
+ env.thread=a;env.api.command('Remember that the launch room is Olive Hall.');
+ const choices=env.api.command('Which launch room did we pick?').say;
+ assert.match(choices,/Indigo Hall/);assert.match(choices,/Olive Hall/);
+});

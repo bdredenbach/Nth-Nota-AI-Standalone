@@ -37,11 +37,11 @@ async def main():
     await asyncio.sleep(.15)
    while await ev('!!job') and time.monotonic()-start<timeout:await asyncio.sleep(.4)
    if await ev('!!job'):await ev("qaClick('send')")
-   data=await ev("""(()=>{const t=thread.turns[thread.turns.length-1];return {sheet,cloud:N.cloud(),completed:t?.question===Q,status:t?.status,local:!!t?.phone,kind:t?.kind,provider:t?.provider,weather:t?.weatherData,refs:t?.memoryRefs?.length||0,sources:t?.sources?.map(s=>s.url),unavailable:t?.unavailable,actions:t?.actions?.map(a=>a.label),file:t?.savedOutput,answer:t?.kind==='memory'?document.querySelector('.turn:last-child')?.innerText:t?.reply||t?.error,dialog:sheet?document.getElementById('dialog').innerText:undefined}})()""".replace('===Q','==='+json.dumps(q)))
+   data=await ev("""(()=>{const t=thread.turns[thread.turns.length-1];return {sheet,cloud:N.cloud(),completed:t?.question===Q,status:t?.status,local:!!t?.phone,kind:t?.kind,provider:t?.provider,weather:t?.weatherData,refs:t?.memoryRefs?.length||0,sources:t?.sources?.map(s=>s.url),unavailable:t?.unavailable,actions:t?.actions?.map(a=>a.label),file:t?.savedOutput,imageMethod:t?.imageMethod,imageTextFallback:t?.canAskText,answer:t?.kind==='memory'?document.querySelector('.turn:last-child')?.innerText:t?.reply||t?.error,dialog:sheet?document.getElementById('dialog').innerText:undefined}})()""".replace('===Q','==='+json.dumps(q)))
    if not data['completed']: data['answer']=data.get('dialog') or 'No new reply'
    row={'group':group,'question':q,'seconds':round(time.monotonic()-start,1),**data}
    with out.open('a') as f:f.write(json.dumps(row,ensure_ascii=False)+'\n')
-   print(group,str(data.get('status')),q,'=>',row['answer'][:180].replace('\n',' '),flush=True)
+   print(group,str(data.get('status')),q,'=>',(row.get('answer') or '')[:180].replace('\n',' '),flush=True)
    if data['sheet'] and q!='Compare v1 and v2 of notaqa-brief.zip.':await click('close')
    return row
   async def fresh():
@@ -140,9 +140,43 @@ async def main():
    adb('shell','cmd','location','set-location-enabled','true')
    await click('settings');await click('phone-setup');await click('phone-config','[data-val="follow"]');await click('close')
    adb('emu','geo','fix','-77.61','43.16')
+   # Supply a network fix through Android's test provider, since this app requests coarse location.
+   adb('shell','appops','set','com.android.shell','android:mock_location','allow')
+   adb('shell','cmd','location','providers','add-test-provider','network')
+   adb('shell','cmd','location','providers','set-test-provider-enabled','network','true')
+   adb('shell','cmd','location','providers','set-test-provider-location','network','--location','43.16,-77.61')
+   await asyncio.sleep(1)
    await ask('Approximate phone location','Can you tell me where I am at currently?')
    await ask('Approximate phone location','What is the weather like where I am at currently?')
    await ask('Approximate phone location','What location did you use for that forecast?')
+  elif suite=='extras':
+   await fresh()
+   for q in ['Break a 45-minute study session into three blocks, including breaks.','Compare a PDF and a ZIP file for sending photos.','Write a polite email declining an invitation in under 45 words.','Convert 72 degrees Fahrenheit to Celsius.','Explain fractions to an eight-year-old using pizza.','I said 8 guests earlier. Now there are 12. Remember the new headcount for this conversation.','How many guests did I just say were coming?','What does RAM do in a phone?','Why might Bluetooth headphones keep disconnecting?','I deleted a photo by accident. What should I try first?']:
+    await ask('Additional everyday and Android help',q)
+  elif suite=='screen-image':
+   import subprocess,re
+   def adb(*args):return subprocess.run(['adb',*args],text=True,capture_output=True,check=True,timeout=25).stdout.strip()
+   await fresh()
+   if await ev('N.cloud()'):await click('settings');await click('cloud');await click('close')
+   await ask('Screenshot source','What is my battery level?')
+   await ev("document.activeElement?.blur()")
+   await asyncio.sleep(.5)
+   file='/sdcard/Pictures/nota-qa-screen.png'
+   adb('shell','screencap','-p',file)
+   adb('shell','am','broadcast','-a','android.intent.action.MEDIA_SCANNER_SCAN_FILE','-d','file://'+file)
+   for _ in range(16):
+    listing=adb('shell','content','query','--uri','content://media/external/images/media','--projection','_id:_display_name')
+    line=next((x for x in listing.splitlines() if 'nota-qa-screen.png' in x),'')
+    mediaid=re.search(r'_id=(\d+)',line)
+    if mediaid:break
+    await asyncio.sleep(.4)
+   assert mediaid,'No screenshot in MediaStore'
+   adb('shell','am','start','-n','com.nth.notaai/.MainActivity','-a','android.intent.action.SEND','-t','image/png','--grant-read-uri-permission','--eu','android.intent.extra.STREAM','content://media/external/images/media/'+mediaid[1])
+   for _ in range(50):
+    if await ev('!!thread.image'):break
+    await asyncio.sleep(.4)
+   assert await ev('!!thread.image'),'Android share did not attach the screenshot'
+   await ask('Shared screenshot, cloud off','What battery percentage is visible in this screenshot?')
   elif suite.startswith('file-pick'):
    import subprocess,zipfile,xml.etree.ElementTree as ET,re
    def adb(*args,check=True):return subprocess.run(['adb',*args],text=True,capture_output=True,check=check,timeout=30).stdout.strip()

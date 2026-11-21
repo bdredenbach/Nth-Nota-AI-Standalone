@@ -57,6 +57,19 @@ const MemoryModel = (() => {
    return {row,score};
   }).filter(hit=>hit.score).sort((a,b)=>b.score-a.score||b.row.updated-a.row.updated);
  }
+ // A remembered decision can be quoted directly when the question identifies its topic.
+ function decisionNotes(rows,value){
+  const q=value.toLowerCase().trim().replace(/[?.!]+$/,'');
+  const decision=q.match(/^(?:which|what) (.+?) did (?:we|i) (?:pick|choose|select|decide on|settle on)$/)||
+   q.match(/^what did (?:we|i) (?:pick|choose|select|decide on|settle on) for (.+)$/);
+  if(!decision)return [];
+  const terms=words(decision[1]);
+  if(!terms.size)return [];
+  return rows.filter(row=>{
+   const topic=words(row.topic);
+   return [...terms].every(term=>topic.has(term));
+  });
+ }
  const ref=row=>({id:row.id,revision:row.revision});
  function relevant(rows,query,prior=[]){
   const namedScope=query.match(/\b(project|chat)(?:[’']s)? (?:memor(?:y|ies)|saved (?:notes|decisions)|decisions)\b/i);
@@ -87,6 +100,6 @@ const MemoryModel = (() => {
   }
   return selected.map(ref);
  }
- return {limit,normalize,subject,command,rank,relevant,attach,ref};
+ return {limit,normalize,subject,command,rank,decisionNotes,relevant,attach,ref};
 })();
 if(typeof module!=='undefined')module.exports=MemoryModel;

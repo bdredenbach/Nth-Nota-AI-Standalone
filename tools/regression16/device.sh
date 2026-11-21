@@ -44,6 +44,8 @@ suite restart-ci local-ci
 suite device-actions
 suite cloud-ci local-ci
 suite file-pick
+suite extras
+suite screen-image
 adb exec-out screencap -p > "$QA_DIR/chat.png"
 adb logcat -d -b crash > "$QA_DIR/crashes.txt"
 exit "$failed"

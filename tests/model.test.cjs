@@ -39,3 +39,21 @@ test('only unique HTTPS source URLs can be opened and reply markup stays inert',
 test('spoken replies omit Markdown punctuation while preserving words and code content', () => {
   assert.equal(model.forSpeech('## Packing\n- **Pencil** and `HB`\n[Paper](https://example.org)'), 'Packing\nPencil and HB\nPaper');
 });
+
+test('creative requests use the writing service with context while research remains in chat',()=>{
+ const history=[{question:'Name my ferry.',reply:'Amber Comet',status:'ok'},{phone:true,question:'Where am I?',reply:'Private location',status:'ok'}];
+ for(const question of ['Draft a two-sentence text.', 'Think of two names for a bookstore cat.', 'Translate this into Spanish.', 'Make a four-step checklist for packing.']){
+  const req=model.request({mode:'auto',question},history);
+  assert.equal(req.route,'write');assert.match(req.prompt,/Amber Comet/);assert.doesNotMatch(req.prompt,/Private location/);
+ }
+ for(const [mode,question] of [['search','Draft a list.'],['auto','Draft a report with official sources.'],['auto','What is a ferry?']])assert.equal(model.request({mode,question},history).route,'chat');
+});
+
+test('recent naming questions can use a previous reply without inventing history',()=>{
+ const q={mode:'auto',question:'What did I call the ferry?'};
+ assert.equal(model.request(q,[]).route,'chat');
+ const earlier=[{question:'I named it Amber Comet.',reply:'Amber Comet',status:'ok'}];
+ const req=model.request(q,earlier);
+ assert.equal(req.route,'write');assert.match(req.prompt,/Amber Comet/);assert.match(req.prompt,/does not contain/);
+ assert.equal(model.request({...q,mode:'search'},earlier).route,'chat');
+});
