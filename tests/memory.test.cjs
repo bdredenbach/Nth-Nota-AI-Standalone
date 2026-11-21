@@ -119,3 +119,15 @@ test('a question about a saved choice quotes only matching visible topics',()=>{
  const choices=env.api.command('Which launch room did we pick?').say;
  assert.match(choices,/Indigo Hall/);assert.match(choices,/Olive Hall/);
 });
+
+test('a scoped request at the end of a message saves the fact and can answer a follow-up',()=>{
+ const {env,a,b,ask}=runtime();
+ const q='I said 8 guests earlier. Now there are 12. Remember the new headcount for this conversation.';
+ assert.match(env.api.command(q).say,/Saved to this chat/);
+ assert.equal(a.memories[0].topic,'headcount');
+ assert.equal(a.memories[0].text,'I said 8 guests earlier. Now there are 12.');
+ const follow='How many guests did I just say were coming?';
+ assert.match(ask(follow).raw,/Now there are 12/);
+ env.thread=b;assert.doesNotMatch(ask(follow).raw,/Now there are 12/);
+ assert.equal(env.api.command('I said 8 guests earlier. Do you remember the new headcount for this conversation?'),null);
+});

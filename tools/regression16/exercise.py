@@ -172,16 +172,23 @@ async def main():
    try:
     row=await ask('Offline, then Retry','Translate “Good morning” into French.')
    finally:
-    adb('shell','cmd','connectivity','airplane-mode','disable');adb('shell','svc','wifi','enable')
+    adb('shell','cmd','connectivity','airplane-mode','disable');adb('shell','svc','wifi','enable');adb('shell','svc','data','enable')
    if row.get('status')=='error':
     for _ in range(35):
      if 'VALIDATED' in adb('shell','dumpsys','connectivity'):break
      await asyncio.sleep(1)
+    await asyncio.sleep(7)
     before=await ev('thread.turns.length')
     await ev("document.querySelector('.turn:last-child [data-action=retry]').click()")
     for _ in range(140):
      if not await ev('!!job'):break
      await asyncio.sleep(.45)
+    if await ev("thread.turns.at(-1).status==='error'"):
+     await asyncio.sleep(14)
+     await ev("document.querySelector('.turn:last-child [data-action=retry]').click()")
+     for _ in range(140):
+      if not await ev('!!job'):break
+      await asyncio.sleep(.45)
     note('Retry the same turn',await ev("({status:thread.turns.at(-1).status,answer:thread.turns.at(-1).reply||thread.turns.at(-1).error,sameCount:thread.turns.length==="+str(before)+"})"))
    await click('settings')
    # Observe real playback status and UI, without injecting audio or synthesizing recognizer results.
@@ -193,20 +200,25 @@ async def main():
    note('Bundled voice preview states',await ev("qaVoiceEvents"))
    await click('close')
    adb('shell','pm','grant','com.nth.notaai','android.permission.RECORD_AUDIO')
+   await ev("window.qaLiveEvents=[];window.qaBeforeLive=window.notaEvent;window.notaEvent=(event,...args)=>{if(event==='live'&&['ready','listening','ended','idle','quiet','speechError'].includes(args[1]))qaLiveEvents.push([args[1],args[3]]);return qaBeforeLive(event,...args)}")
    for mode in ['chat','dot']:
     await click('live-menu');await click('live-start','[data-val="'+mode+'"]')
+    note('Start '+mode,await ev("({visible:!$('live-panel').hidden,expanded:LiveChat.expanded()})"))
+    if not await ev("$('live-panel').hidden"):
+     await ev("document.querySelector('[data-action=live-switch]').click()");note('Switched immediately '+mode,await ev('LiveChat.expanded()'))
     await asyncio.sleep(3)
     note('Live '+mode,await ev("({visible:!$('live-panel').hidden,expanded:LiveChat.expanded(),state:$('live-state').innerText,caption:$('live-caption').innerText})"))
     if not await ev("$('live-panel').hidden"):
      await ev("document.querySelector('[data-action=live-switch]').click()");note('Switched '+mode,await ev('LiveChat.expanded()'))
      await ev("document.querySelector('[data-action=live-end]').click()")
     note('Ended '+mode,await ev("$('live-panel').hidden"))
+   note('Native voice events',await ev('qaLiveEvents'))
   elif suite=='extras':
    await fresh()
    for q in ['Break a 45-minute study session into three blocks, including breaks.','Compare a PDF and a ZIP file for sending photos.','Write a polite email declining an invitation in under 45 words.','Convert 72 degrees Fahrenheit to Celsius.','Explain fractions to an eight-year-old using pizza.','I said 8 guests earlier. Now there are 12. Remember the new headcount for this conversation.','How many guests did I just say were coming?','What does RAM do in a phone?','Why might Bluetooth headphones keep disconnecting?','I deleted a photo by accident. What should I try first?']:
     await ask('Additional everyday and Android help',q)
   elif suite=='screen-image':
-   import subprocess,re
+   import subprocess,re,xml.etree.ElementTree as ET
    def adb(*args):return subprocess.run(['adb',*args],text=True,capture_output=True,check=True,timeout=25).stdout.strip()
    await fresh()
    if await ev('N.cloud()'):await click('settings');await click('cloud');await click('close')
@@ -223,12 +235,33 @@ async def main():
     if mediaid:break
     await asyncio.sleep(.4)
    assert mediaid,'No screenshot in MediaStore'
-   adb('shell','am','start','-n','com.nth.notaai/.MainActivity','-a','android.intent.action.SEND','-t','image/png','--grant-read-uri-permission','--eu','android.intent.extra.STREAM','content://media/external/images/media/'+mediaid[1])
-   for _ in range(50):
+   await click('attach');await click('pick-image')
+   for _ in range(8):
+    await asyncio.sleep(.7)
+    adb('shell','uiautomator','dump','/sdcard/qa-photo.xml')
+    xml=adb('shell','cat','/sdcard/qa-photo.xml')
+    nodes=ET.fromstring(xml).findall('.//node')
+    thumbs=[n for n in nodes if n.get('resource-id','').split('/')[-1] in ['icon_thumbnail','image_thumbnail','media_thumbnail','item_artwork','thumbnail','icon_image']]
+    if not thumbs:thumbs=[n for n in nodes if re.search(r'(?:photo|image|screenshot) (?:taken|from|on)|nota-qa-screen',n.get('content-desc','')+' '+n.get('text',''),re.I)]
+    if thumbs:
+     x,y,u,v=map(int,re.findall(r'\d+',thumbs[0].get('bounds')));adb('shell','input','tap',str((x+u)//2),str((y+v)//2))
+    elif any(n.get('text') in ('Allow','Continue','Got it') for n in nodes):
+     n=next(n for n in nodes if n.get('text') in ('Allow','Continue','Got it'));x,y,u,v=map(int,re.findall(r'\d+',n.get('bounds')));adb('shell','input','tap',str((x+u)//2),str((y+v)//2))
+    await asyncio.sleep(.8)
+    if await ev('!!thread.image'):break
+   if not await ev('!!thread.image'):(qa/'photo-picker.xml').write_text(xml)
+   assert await ev('!!thread.image'),'Android photo picker did not attach the screenshot'
+   await ask('Screenshot from Android Photos, cloud off','What battery percentage is visible in this screenshot?')
+   # Native share is a separate entry point. Use the existing task and record bridge events.
+   await fresh()
+   await ev("window.qaShareEvents=[];window.qaBeforeShare=window.notaEvent;window.notaEvent=(event,...args)=>{if(['notice','sharedImage','imagePicked'].includes(event))qaShareEvents.push([event,event==='notice'?args[0]:'']);return qaBeforeShare(event,...args)}")
+   uri='content://media/external/images/media/'+mediaid[1]
+   launch=adb('shell','am','start','-f','0x34000001','-n','com.nth.notaai/.MainActivity','-a','android.intent.action.SEND','-t','image/png','-d',uri,'--eu','android.intent.extra.STREAM',uri)
+   for _ in range(25):
     if await ev('!!thread.image'):break
     await asyncio.sleep(.4)
-   assert await ev('!!thread.image'),'Android share did not attach the screenshot'
-   await ask('Shared screenshot, cloud off','What battery percentage is visible in this screenshot?')
+   (qa/'share.json').write_text(json.dumps({'attached':await ev('!!thread.image'),'events':await ev('qaShareEvents'),'launch':launch[:320]}))
+   if await ev('!!thread.image'):await ask('Android Share, cloud off','Read the battery level from the screenshot.')
   elif suite.startswith('file-pick'):
    import subprocess,zipfile,xml.etree.ElementTree as ET,re
    def adb(*args,check=True):return subprocess.run(['adb',*args],text=True,capture_output=True,check=check,timeout=30).stdout.strip()

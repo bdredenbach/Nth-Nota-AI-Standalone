@@ -24,11 +24,20 @@ const NotaModel = (() => {
    }
    return messages;
  }
- function isWritingRequest(turn){
+ function usesWritingService(turn){
    if(turn.mode!=='auto')return false;
    const q=turn.question.trim().replace(/^(?:please |(?:can|could|would) you (?:please )?)/i,'');
-   if(/https?:|\b(?:search|web|cite|sources?|verify|research|look up|latest|current|today['’]s|official|news)\b/i.test(q))return false;
+   if(/https?:|\b(?:search|web|cite|sources?|verify|research|look up|latest|current|today['’]s|official|news|prices?|exchange rates?|guidelines|recalls?)\b/i.test(q))return false;
+   // A recipe or unit conversion can be completed from the quantities the user supplied.
+   const quantities=/\b\d+(?:[./]\d+)? *[a-z]*\b/i.test(q);
+   const recipeScale=quantities&&/\b(?:cups?|tablespoons?|teaspoons?|grams?|ounces?|liters?)\b/i.test(q)&&
+     /\b(?:people|persons?|portions?|servings?|serves?)\b/i.test(q)&&/\b(?:how (?:many|much)|scale|double|halve)\b/i.test(q);
+   const mealIdea=/^(?:i have|we have|using)\b.{1,180}?[.!?,]\s*(?:please )?(?:suggest|plan|make|give me)\b.{0,45}\b(?:dinner|lunch|breakfast|meal|recipe)\b/i.test(q);
+   const unitConversion=quantities&&/^convert\b/i.test(q)&&/\b(?:fahrenheit|celsius|kilometers?|miles?|centimeters?|inches|kilograms?|pounds?)\b/i.test(q)&&
+     /\b(?:to|into) (?:degrees )?(?:fahrenheit|celsius|kilometers?|miles?|centimeters?|inches|kilograms?|pounds?)[?.! ]*$/i.test(q);
+   if(recipeScale||mealIdea||unitConversion)return true;
    return /^(?:draft|rewrite|rephrase|translate)\b/i.test(q)||
+     /^use (?:that|this|the|my|our) (?:name|detail|phrase|idea) in (?:.{0,35} )?(?:invitation|message|story|sentence|poem)\b/i.test(q)||
      /^(?:think of|brainstorm|come up with) (?:.{0,45} )?(?:names|ideas|titles)\b/i.test(q)||
      /^(?:make|create|write|give me) (?:.{0,45} )?(?:checklist|grocery list|poem|invitation)\b/i.test(q);
  }
@@ -51,12 +60,13 @@ const NotaModel = (() => {
      return {route:'write',prompt:'Write the requested downloadable Markdown document. Honor the requested item count and length. Return only the finished file text.\n\nRECENT CHAT\n'+recent+'\n\nREQUEST\n'+turn.question};
    }
    const recallRecent=turn.mode==='auto'&&/^(?:what (?:did i (?:just )?(?:call|name|say about)|name did i (?:give|choose) for) [^?!]{1,100}|how many [^?!]{1,50} did i (?:just )?say [^?!]{1,80})[?! .]*$/i.test(turn.question.trim());
-   if(isWritingRequest(turn)||(recallRecent&&context(prior).length)){
-     const earlier=context(prior).map(m=>m.role+': '+m.content).join('\n');
-     const direction=recallRecent?'Answer from the earlier conversation. If it does not contain the detail, say so.':'Complete the writing request, respecting the requested length, number of items and language. Use the earlier chat only if relevant.';
+   const history=context(prior);
+   if(usesWritingService(turn)||recallRecent){
+     const earlier=history.map(m=>m.role+': '+m.content).join('\n');
+     const direction=recallRecent?'Answer from the earlier conversation. If it does not contain the detail, say so.':'Answer the request directly. Respect the requested length, item count and language. For a calculation, include the final quantity and units. Use the earlier chat only if relevant.';
      return {route:'write',prompt:direction+'\n\nEARLIER CHAT\n'+earlier+'\n\nREQUEST\n'+turn.question};
    }
-   return {route:'chat',question:turn.question,mode:turn.mode,messages:context(prior)};
+   return {route:'chat',question:turn.question,mode:turn.mode,messages:history};
  }
  function tidy(s){ return String(s).replace(/\*\*(.*?)\*\*/g,'$1').replace(/__(.*?)__/g,'$1').replace(/^`(.+)`$/,'$1').trim(); }
  function checklist(text){

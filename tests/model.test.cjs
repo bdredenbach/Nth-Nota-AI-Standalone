@@ -51,9 +51,17 @@ test('creative requests use the writing service with context while research rema
 
 test('recent naming questions can use a previous reply without inventing history',()=>{
  const q={mode:'auto',question:'What did I call the ferry?'};
- assert.equal(model.request(q,[]).route,'chat');
+ assert.equal(model.request(q,[]).route,'write');
  const earlier=[{question:'I named it Amber Comet.',reply:'Amber Comet',status:'ok'}];
  const req=model.request(q,earlier);
  assert.equal(req.route,'write');assert.match(req.prompt,/Amber Comet/);assert.match(req.prompt,/does not contain/);
  assert.equal(model.request({...q,mode:'search'},earlier).route,'chat');
+});
+
+test('self-contained recipes and conversions use the existing writing service and keep live-data requests in chat',()=>{
+ for(const question of ['I need 1.5 cups of rice for four people. How many cups do I need for six?','I have eggs, rice and spinach. Suggest a 15-minute dinner.','Convert 72 degrees Fahrenheit to Celsius.']){
+  assert.equal(model.request({mode:'auto',question},[]).route,'write');
+  assert.equal(model.request({mode:'search',question},[]).route,'chat');
+ }
+ for(const question of ['Convert 200 dollars into euros.', 'How much do two cups of rice cost at current prices?', 'I have eggs. Suggest a meal and verify the latest recalls.'])assert.equal(model.request({mode:'auto',question},[]).route,'chat');
 });

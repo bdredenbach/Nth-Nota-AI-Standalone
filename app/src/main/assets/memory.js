@@ -24,6 +24,12 @@ const MemoryModel = (() => {
   const head=new RegExp('^(?:(?:this|that)\\s+)?'+scopePattern+'\\b[\\s,:–—-]*','i');
   const tail=new RegExp('(?:,?\\s+)'+scopePattern+'[.!?]*$','i');
   const scopeOf=s=>s?.toLowerCase()==='project'?'project':s?'chat':'';
+  // A user can state a fact first, then explicitly ask to keep it in this chat or project.
+  const trailing=q.match(new RegExp('^([\\s\\S]+?[.!?])\\s+(?:please )?remember (this|that|it|(?:the|my|our) [^.!?]{1,64}?)\\s+'+scopePattern+'[.!?]*$','i'));
+  if(trailing){
+   const name=/^(?:this|that|it)$/i.test(trailing[2])?'':trailing[2].replace(/^(?:the|my|our) (?:new )?/i,'');
+   return {op:'save',scope:scopeOf(trailing[3]),text:trailing[1].trim(),topic:name};
+  }
   const recall=/^(?:what do you remember|do you remember|(?:list|show)(?: me)? (?:all )?(?:my |our |the )?(?:saved )?memories)\b/i;
   const question=/^remember\s+(?=(?:what|which|where|who|whose|when|why|how|whether)\b)/i;
   if(recall.test(q)||question.test(q)){
