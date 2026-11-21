@@ -2,7 +2,13 @@
 
 A standalone Android assistant with two work surfaces. Chat holds a conversation. Desk holds editable notes, drafts and checklists that can outlive that conversation. A saved card carries its source links and opens the original thread while that thread exists. **Ask about this card** sends edits back through a new, reviewable draft.
 
-Version 0.8.0 is a debug-signed testing build. Application ID `com.nth.notaai`. Minimum Android 8.0, target Android 16 / API 36. It can be installed alongside the Nth Nota notes app and the Nth Desktop launchers.
+Version 0.9.0 is a debug-signed testing build. Application ID `com.nth.notaai`. Minimum Android 8.0, target Android 16 / API 36. It can be installed alongside the Nth Nota notes app and the Nth Desktop launchers.
+
+## Organizing chats and Desk cards
+
+Open the menu at the top left to search saved chats, Desk cards and project names. Search runs on the device and includes chat messages, card text and attachment names. Pinned items appear above recent chats. Use the options beside an item to pin, rename or move it.
+
+Open **Projects** to create a project. Inside it, use **New chat** or **Add existing**. Cards saved from a project chat and branches from that chat start in the same project. Each item can be moved individually. Removing a project keeps its contents in All chats and Desk. Temporary conversations stay outside search and projects. Project membership does not add other chats to a model request.
 
 ## Chat attachments
 

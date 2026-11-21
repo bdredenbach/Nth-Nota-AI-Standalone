@@ -24,7 +24,7 @@ const ConversationTools = (() => {
   const c={id:M.id('card'),type:'Note',title:quote.slice(0,76),body:quote,quote,items:[],sources:[],
    origin:thread.temporary?'':thread.id,sourceIndex:index,updated:Date.now()};
   if(!persist(c.id,c))return;
-  cards.set(c.id,c);line.pinned=c.id;saveThread();renderChat();N.pinTick();notice('Thought saved to Desk.');
+  cards.set(c.id,c);if(c.origin)Organizer.inherit(c.id,c.origin);line.pinned=c.id;saveThread();renderChat();N.pinTick();notice('Thought saved to Desk.');
  }
  function previousSpoken() {
   for(let i=thread.turns.length-1;i>=0;i--)if(thread.turns[i].spoken && thread.turns[i].kind!=='recap')return i;

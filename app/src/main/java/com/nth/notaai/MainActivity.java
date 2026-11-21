@@ -203,7 +203,7 @@ public final class MainActivity extends Activity {
             return data.toString();
         }
         @JavascriptInterface public boolean record(String key, String json) {
-            if (!key.matches("(prefs|thread-[a-zA-Z0-9-]+|card-[a-zA-Z0-9-]+)")) return false;
+            if (!key.matches("(prefs|organizer|thread-[a-zA-Z0-9-]+|card-[a-zA-Z0-9-]+)")) return false;
             return (json.isEmpty() ? store.edit().remove(key) : store.edit().putString(key, json)).commit();
         }
         @JavascriptInterface public boolean cloud() { return store.getBoolean("consent", false); }

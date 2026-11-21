@@ -66,7 +66,7 @@ final class Gateway {
             http.setRequestProperty("Content-Type", "application/json");
             http.setRequestProperty("Accept", "application/json");
             http.setRequestProperty("Origin", "https://appassets.androidplatform.net");
-            http.setRequestProperty("User-Agent", "NthNotaAI/0.8.0 (Android)");
+            http.setRequestProperty("User-Agent", "NthNotaAI/0.9.0 (Android)");
             http.setFixedLengthStreamingMode(bytes.length);
             try (OutputStream out = http.getOutputStream()) {
                 if (canceled) throw new IOException("Stopped.");

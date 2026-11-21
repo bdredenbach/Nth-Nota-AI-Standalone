@@ -1,5 +1,6 @@
 'use strict';
 const paths = {
+ menu:'M3 6h18M3 12h13M3 18h18', folder:'M3 6h6l2 2h10v11H3z', pin:'M8 3h8l-1 6 3 4v1H6v-1l3-4z M12 14v7',
  camera:'M3 7h4l2-3h6l2 3h4v13H3z M16 13a4 4 0 1 1-8 0 4 4 0 1 1 8 0z',
  image:'M3 4h18v16H3z M3 16l5-5 4 4 3-4 6 6 M16 8h.1',
  wave:"M3 10v4m4-8v12m5-15v18m5-15v12m4-8v4",
