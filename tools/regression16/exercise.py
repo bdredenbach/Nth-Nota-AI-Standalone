@@ -149,6 +149,58 @@ async def main():
    await ask('Approximate phone location','Can you tell me where I am at currently?')
    await ask('Approximate phone location','What is the weather like where I am at currently?')
    await ask('Approximate phone location','What location did you use for that forecast?')
+  elif suite=='interaction':
+   import subprocess
+   def adb(*args):return subprocess.run(['adb',*args],text=True,capture_output=True,check=True,timeout=25).stdout.strip()
+   def note(name,value):
+    with (qa/'interactions.jsonl').open('a') as f:f.write(json.dumps({'check':name,'value':value})+'\n')
+   await fresh()
+   if not await ev('N.cloud()'):await click('settings');await click('cloud');await click('agree')
+   row=await ask('Desk and history','Make a three-item checklist for a day hike.')
+   if row['status']=='ok':
+    await ev("document.querySelector('.turn:last-child [data-action=to-desk]').click()")
+    await click('create-card','[data-val=Checklist]')
+    note('Saved checklist',await ev("({page,title:$('card-title').value,items:card.items.map(x=>x.text)})"))
+    await ev("document.querySelector('.check-row input').click()")
+    await ev("document.querySelector('[data-action=desk]').click()")
+    await ev("document.querySelector('[data-action=open-card]').click()")
+    note('Reopened checklist',await ev("card.items.map(x=>({text:x.text,done:x.done}))"))
+   await ev("document.querySelector('[data-action=chat]').click()")
+   await fresh()
+   adb('shell','cmd','connectivity','airplane-mode','enable');adb('shell','svc','wifi','disable')
+   await asyncio.sleep(2)
+   try:
+    row=await ask('Offline, then Retry','Translate “Good morning” into French.')
+   finally:
+    adb('shell','cmd','connectivity','airplane-mode','disable');adb('shell','svc','wifi','enable')
+   if row.get('status')=='error':
+    for _ in range(35):
+     if 'VALIDATED' in adb('shell','dumpsys','connectivity'):break
+     await asyncio.sleep(1)
+    before=await ev('thread.turns.length')
+    await ev("document.querySelector('.turn:last-child [data-action=retry]').click()")
+    for _ in range(140):
+     if not await ev('!!job'):break
+     await asyncio.sleep(.45)
+    note('Retry the same turn',await ev("({status:thread.turns.at(-1).status,answer:thread.turns.at(-1).reply||thread.turns.at(-1).error,sameCount:thread.turns.length==="+str(before)+"})"))
+   await click('settings')
+   # Observe real playback status and UI, without injecting audio or synthesizing recognizer results.
+   await ev("window.qaVoiceEvents=[];new MutationObserver(()=>window.qaVoiceEvents.push($('voice-preview-label')?.innerText)).observe($('voice-preview-label'),{childList:true,subtree:true,characterData:true})")
+   await click('preview-voice')
+   for _ in range(160):
+    if not await ev('!!previewToken'):break
+    await asyncio.sleep(.4)
+   note('Bundled voice preview states',await ev("qaVoiceEvents"))
+   await click('close')
+   adb('shell','pm','grant','com.nth.notaai','android.permission.RECORD_AUDIO')
+   for mode in ['chat','dot']:
+    await click('live-menu');await click('live-start','[data-val="'+mode+'"]')
+    await asyncio.sleep(3)
+    note('Live '+mode,await ev("({visible:!$('live-panel').hidden,expanded:LiveChat.expanded(),state:$('live-state').innerText,caption:$('live-caption').innerText})"))
+    if not await ev("$('live-panel').hidden"):
+     await ev("document.querySelector('[data-action=live-switch]').click()");note('Switched '+mode,await ev('LiveChat.expanded()'))
+     await ev("document.querySelector('[data-action=live-end]').click()")
+    note('Ended '+mode,await ev("$('live-panel').hidden"))
   elif suite=='extras':
    await fresh()
    for q in ['Break a 45-minute study session into three blocks, including breaks.','Compare a PDF and a ZIP file for sending photos.','Write a polite email declining an invitation in under 45 words.','Convert 72 degrees Fahrenheit to Celsius.','Explain fractions to an eight-year-old using pizza.','I said 8 guests earlier. Now there are 12. Remember the new headcount for this conversation.','How many guests did I just say were coming?','What does RAM do in a phone?','Why might Bluetooth headphones keep disconnecting?','I deleted a photo by accident. What should I try first?']:

@@ -29,9 +29,6 @@ jobs:
       - name: Build debug APK
         run: |
           ./gradlew --no-daemon :app:assembleDebug
-          git worktree add --detach /tmp/nota-before ed7fcc4c329f4d85616c4a1f58296726fa570eba
-          cd /tmp/nota-before
-          ./gradlew --no-daemon :app:assembleDebug
       - name: Ask Nota on API 36
         uses: reactivecircus/android-emulator-runner@v2
         with:

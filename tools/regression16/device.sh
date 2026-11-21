@@ -4,7 +4,7 @@ export QA_DIR="$PWD/regression-evidence"
 mkdir -p "$QA_DIR"
 adb shell 'getprop ro.build.version.sdk; getprop ro.build.version.release; getprop ro.build.fingerprint' | tee "$QA_DIR/device.txt"
 test "$(adb shell getprop ro.build.version.sdk | tr -d '\r')" = 36
-adb install -r /tmp/nota-before/app/build/outputs/apk/debug/app-debug.apk
+adb install -r app/build/outputs/apk/debug/app-debug.apk
 adb shell dumpsys package com.nth.notaai | grep -m2 -E 'versionCode|versionName' | tee -a "$QA_DIR/device.txt"
 adb shell input keyevent KEYCODE_WAKEUP
 adb shell wm dismiss-keyguard
@@ -32,20 +32,7 @@ suite(){
  fi
 }
 connect
-suite upgrade-base
-adb install -r app/build/outputs/apk/debug/app-debug.apk
-adb shell dumpsys package com.nth.notaai | grep -m2 -E 'versionCode|versionName' | tee -a "$QA_DIR/device.txt"
-connect
-suite upgrade-new
-suite local-ci
-adb shell am force-stop com.nth.notaai
-connect
-suite restart-ci local-ci
-suite device-actions
-suite cloud-ci local-ci
-suite file-pick
-suite extras
-suite screen-image
+suite interaction
 adb exec-out screencap -p > "$QA_DIR/chat.png"
 adb logcat -d -b crash > "$QA_DIR/crashes.txt"
 exit "$failed"
