@@ -16,13 +16,16 @@ const LiveChat = (() => {
   const entry=document.getElementById('live-entry');
   entry.hidden=page!=='chat'||!!session;
   if(!session)return;
-  const s=session;
+  const s=session, walk=s.mode==='walk';
+  $('live-tools').hidden=walk;$('walk-tools').hidden=!walk;$('voice-switch').hidden=walk;
+  $('voice-label').textContent=walk?'Checklist walkthrough':thread.ramble?'Ramble':'Live voice';
+  $('ramble-toggle').textContent=thread.ramble?'Finish ramble':'Let me ramble';
   p.dataset.state=s.state;
   p.classList.toggle('expanded',expanded);
   const status=labels[s.state]+(s.muted && s.state!=='paused'?' · mic muted':'');
   const statusEl=document.getElementById('live-state');
   if(statusEl.textContent!==status)statusEl.textContent=status;
-  document.getElementById('live-caption').textContent=s.caption;
+  document.getElementById('live-caption').textContent=s.caption||(walk?Walkthrough.prompt(s):thread.ramble?'Take your time. Say “I’m done” when you’re ready.':'');
   const mute=document.getElementById('live-mute');
   mute.textContent=s.muted?'Resume mic':'Mute mic';
   mute.setAttribute('aria-pressed',String(s.muted));
@@ -35,13 +38,14 @@ const LiveChat = (() => {
   const description=N.cloud()?'During live voice, AI questions are sent to Nth Nota as text. Phone commands are handled locally.':'Cloud questions are off. You can ask about your phone, open a shortcut or use weather if enabled.';
   modal('Live voice','<p class="desc">Android handles microphone audio and may use its online speech service. '+description+'</p>'+
    button('live-start','Voice in Chat','chat','data-val="chat"')+
-   button('live-start','Live View','wave','data-val="dot"'),'live-menu');
+   button('live-start','Live View','wave','data-val="dot"')+button('ramble-start','Let me ramble','mic')+
+   (thread.turns.length?button('bookmark','Leave it here','note'):'')+'<p class="desc">Say “Hold that thought” after a sentence to pin your words to Desk.</p>','live-menu');
  }
- function start(expanded) {
-  if(job || session || page!=='chat')return;
+ function start(expanded,mode='chat') {
+  if(job||session||page!==(mode==='walk'?'card':'chat'))return;
   closeSheet();
   document.activeElement.blur();
-  session={id:M.id('live'),thread:thread.id,expanded,muted:false,token:'',state:'preparing',caption:'',silences:0};
+  session={id:M.id('live'),thread:thread.id,mode,cardId:mode==='walk'?card.id:'',expanded,muted:false,token:'',state:'preparing',caption:'',silences:0};
   panel().dataset.level='0';
   render();
   N.beginLive(session.id);
@@ -58,6 +62,7 @@ const LiveChat = (() => {
  }
  function view(expanded) {
   if(!session)return;
+  if(session.mode==='walk'){if(!expanded)end();return;}
   session.expanded=expanded;
   render();
   if(!expanded)requestAnimationFrame(()=>{$('main').scrollTop=$('main').scrollHeight;});
@@ -114,12 +119,15 @@ const LiveChat = (() => {
   const s=session;
   if(!s || !active.voice || active.voice.id!==s.id || active.thread.id!==s.thread)return;
   if(t.status!=='ok'){pauseMic(t.error||'Couldn’t get a reply.');return;}
+  speak(s,t.reply);
+ }
+ function speak(s,text) {
   s.token=M.id('speech');
   s.state='loading';
-  s.caption=t.reply;
+  s.caption=text;
   const token=s.token;
   render();
-  N.speakLive(s.id,token,M.forSpeech(t.reply));
+  N.speakLive(s.id,token,M.forSpeech(text));
   speechTimer=setTimeout(()=>{
    if(session===s && s.token===token && s.state==='loading'){
     N.interruptLive(s.id);
@@ -127,11 +135,34 @@ const LiveChat = (() => {
    }
   },90000);
  }
+ function localCommand(text,fromMic=false){
+  const s=session;if(!s)return false;
+  if(!fromMic && s.state==='preparing')return false;
+  const hold=Thoughts.command(text)==='hold that thought';
+  if(!fromMic && s.mode==='chat' && hold && (s.state==='finishing'||(s.state==='listening'&&s.caption))){
+   s.pinNext=true;notice('The next finished sentence will be pinned.');return true;
+  }
+  if(hold && s.unsent){text=s.unsent+' Hold that thought';}
+  if(fromMic||hold)s.unsent='';
+  if(fromMic && s.pinNext){s.pinNext=false;if(!Thoughts.pinRequest(text))text+=' Hold that thought';}
+  const result=s.mode==='walk'?Walkthrough.handle(s,text):ConversationTools.handle(text);
+  if(!result)return false;
+  if(session!==s)return true;
+  if(!fromMic&&hold&&['thinking','loading','speaking'].includes(s.state))return true;
+  if(!fromMic){
+   if(job && job.voice && job.voice.id===s.id)stopJob('Stopped for a voice command.');
+   N.interruptLive(s.id);
+  }
+  clearTimeout(speechTimer);s.token='';s.silences=0;
+  if(result.say){s.endAfter=!!result.endAfter;speak(s,result.say);}
+  else listen(280);
+  return true;
+ }
  function onEvent(id,type,token,value) {
   const s=session;
   if(!s || s.id!==id)return;
   if(type==='ended'){end(value,false);return;}
-  if(type==='ready'){if(s.state==='preparing')listen();return;}
+  if(type==='ready'){if(s.state==='preparing'){if(s.mode==='walk')speak(s,Walkthrough.prompt(s));else if(thread.bookmark&&!thread.ramble)speak(s,[thread.bookmark.note,thread.bookmark.next].filter(Boolean).join(' '));else listen();}return;}
   if(!token || token!==s.token)return;
   switch(type) {
    case 'level':panel().dataset.level=String(Math.min(4,Math.max(0,Number(value)||0)));return;
@@ -141,29 +172,33 @@ const LiveChat = (() => {
    case 'listening':s.state='listening';break;
    case 'partial':s.caption=value;break;
    case 'finishing':s.state='finishing';break;
-   case 'idle':case 'speechError':pauseMic(value);return;
+   case 'idle':if(thread.ramble&&s.mode==='chat'&&/timed out/i.test(value)){listen(600);return;}pauseMic(value);return;
+   case 'speechError':pauseMic(value);return;
    case 'quiet':
+    if(s.mode==='chat'&&thread.ramble){listen(600);return;}
     if(++s.silences>=2){pauseMic('No speech heard. Resume when you’re ready.');return;}
     listen(380);return;
    case 'final':{
     const text=value.trim();
     if(s.muted || s.thread!==thread.id || !text)return;
+    if(localCommand(text,true))return;
     if(job){pauseMic('Another reply is in progress.');return;}
     if(text.length>2000){pauseMic('That turn was too long to send. Try a shorter question.');return;}
-    if(!N.cloud()&&!phoneIntent(text,thread.turns[thread.turns.length-1])){pauseMic('Cloud questions are off. Enable them in Settings for general AI questions, or resume to ask about your phone.');return;}
+    if(!N.cloud()&&!phoneIntent(text,thread.turns[thread.turns.length-1])){s.unsent=text;pauseMic('Cloud questions are off. Enable them in Settings for general AI questions, or resume to ask about your phone.');return;}
     s.token='';
     s.silences=0;
     s.state='thinking';
     s.caption=text;
+    s.unsent='';
     if(!submitQuestion(text,'',{id:s.id,token})){pauseMic('Couldn’t send that voice turn.');return;}
     break;
    }
    case 'speaking':
     clearTimeout(speechTimer);s.state='speaking';break;
-   case 'spoken':listen(320);return;
+   case 'spoken':if(s.endAfter){end('Checklist complete.');return;}listen(320);return;
    default:return;
   }
   render();
  }
- return {active:()=>!!session,expanded:()=>!!(session&&session.expanded),end,menu,start,mute,interrupt,view,render,reply,onEvent};
+ return {active:()=>!!session,expanded:()=>!!(session&&session.expanded),end,menu,start,mute,interrupt,view,render,reply,onEvent,localCommand};
 })();

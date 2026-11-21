@@ -2,11 +2,19 @@
 
 A standalone Android assistant with two work surfaces. Chat holds a conversation. Desk holds editable notes, drafts and checklists that can outlive that conversation. A saved card carries its source links and opens the original thread while that thread exists. **Ask about this card** sends edits back through a new, reviewable draft.
 
-Version 0.4.0 is a debug-signed testing build. Application ID `com.nth.notaai`. Minimum Android 8.0, target Android 16 / API 36. It can be installed alongside the Nth Nota notes app and the Nth Desktop launchers.
+Version 0.5.0 is a debug-signed testing build. Application ID `com.nth.notaai`. Minimum Android 8.0, target Android 16 / API 36. It can be installed alongside the Nth Nota notes app and the Nth Desktop launchers.
 
 ## Live voice
 
 Tap **Live** in Chat, then choose **Voice in Chat** for the transcript or **Live View** for the animated dot. Allow microphone access when prompted. Enable cloud questions for general AI conversations. Speak, pause, and listen to the reply. The microphone reopens after playback finishes. **Show chat** and **Live View** switch views of the same thread. **Mute mic** pauses capture. **Interrupt** cancels the current answer or stops its playback. **End voice**, typing, opening another screen, or leaving the app ends the session. Android speech recognition handles microphone input. Nota speaks with its bundled Kokoro Heart model. Android handles microphone audio and may use its online speech service. Nth Nota sends recognized text through the existing chat gateway. Saved drafts and attachments are kept separate from spoken turns.
+
+## Conversation and Desk tools
+
+- **Hold that thought** saves the last sentence Android recognized as a Desk note. Add the phrase at the end of an utterance or say it on the next turn. A system click acknowledges the save when touch sounds are enabled. **Go to spoken line** opens the original regular chat and highlights the quote. A note explicitly pinned from a temporary chat keeps the quote.
+- **Let me ramble** keeps listening across pauses while Nota is open. Each completed passage appears in the transcript. Say **I’m done** for a short recap in your own words, then choose an idea to explore. A regular chat can resume a partially captured ramble after reopening.
+- **Leave it here** saves an editable bookmark with a next question. Reopening the chat shows both fields. Starting live voice in that chat reads them aloud. Temporary bookmarks last for the current temporary conversation.
+- **Walk me through it** opens from a Desk checklist and reads the next unchecked step. Say **done**, **repeat**, or **I found a problem**. You can also say “Step two failed. The folder closed.” Observations are stored beside the relevant step and included in Markdown export. Leaving Nota stops the microphone and retains completed steps.
+- **Change just that** opens on a Desk draft or note. Select a paragraph or highlight text, type or dictate an instruction, then preview the proposed replacement. Select **Keep my last sentence exactly** to protect the closing sentence. Only the editable passage and instruction go to the existing writing service. You can keep the original, apply the edit, or undo the last accepted edit after reopening the card.
 
 ## Phone setup
 

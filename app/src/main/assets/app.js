@@ -21,7 +21,7 @@ function persist(key,value) {
 function remember(){persist('prefs',prefs);}
 function saveThread(t=thread){
  if(t.temporary)return;
- if(!t.turns.length&&!t.draft.trim()&&!t.attachment && !threads.has(t.id))return;
+ if(!t.turns.length&&!t.draft.trim()&&!t.attachment&&!t.bookmark&&!t.ramble && !threads.has(t.id))return;
  threads.set(t.id,t);persist(t.id,t);
  if(t===thread && prefs.last!==t.id){prefs.last=t.id;remember();}
 }
@@ -44,12 +44,13 @@ if(schemeQuery.addEventListener)schemeQuery.addEventListener('change',applyTheme
 function modal(title,body,kind){
  stopPreview();
  if(LiveChat.active())LiveChat.end();
+ if(sheet==='revision'&&kind!=='revision')Revision.close();
  if(!sheet)lastFocus=document.activeElement;sheet=kind||title;
  $('dialog').innerHTML='<div class="dialog-head"><h2 id="dialog-title">'+M.esc(title)+'</h2><button aria-label="Close dialog" class="icon-btn" data-action="close">'+icon('close')+'</button></div>'+body;
  $('overlay').hidden=false;$('app').setAttribute('aria-hidden','true');
  $('dialog').querySelector('button').focus();
 }
-function closeSheet(){stopPreview();sheet='';$('overlay').hidden=true;$('app').removeAttribute('aria-hidden');if(lastFocus && document.contains(lastFocus))lastFocus.focus();lastFocus=null;}
+function closeSheet(){if(sheet==='revision')Revision.close();stopPreview();sheet='';$('overlay').hidden=true;$('app').removeAttribute('aria-hidden');if(lastFocus && document.contains(lastFocus))lastFocus.focus();lastFocus=null;}
 function confirmAction(title,desc,action,label){modal(title,'<p class="desc">'+M.esc(desc)+'</p>'+button(action,label,null,'','primary'));}
 let previewToken='';
 function voiceRate(){return [75,80,85,90,95,100,105,110].includes(prefs.voiceRate)?prefs.voiceRate:90;}
@@ -121,14 +122,16 @@ function renderChat(scroll=false){
  if(!thread.turns.length){main.innerHTML=emptyHome();}
  else{
  main.innerHTML='<div class="chat-body"><div class="context-label">'+icon(thread.temporary?'eye':'chat')+M.esc(thread.temporary?'Temporary chat':thread.title)+'</div>'+thread.turns.map((t,i)=>{
+ if(t.kind)return ConversationTools.localTurn(t,i);
  const attr='data-i="'+i+'"';
  let answer;
  if(t.status==='waiting') answer='<div class="working" role="status"><i></i>'+(t.attachment?'Reading your passage…':t.mode==='search'?'Looking for sources…':'Working on your reply…')+'</div>';
  else if(t.status==='error')answer='<div class="problem"><p>'+M.esc(t.error)+'</p>'+button('retry','Retry','arrow',attr,'text-btn')+button('editq','Edit question','pen',attr,'text-btn')+'</div>';
  else answer='<div class="answer-text">'+M.markdown(t.reply)+'</div>'+(t.phone?phoneActions(t,i):'')+sourceRows(t.sources)+(t.unavailable?button('web-fallback','Search in browser','sendout',attr,'text-btn'):'')+'<div class="reply-meta">'+M.esc([t.phone?(t.weatherData?'Weather · MET Norway':'On this phone'):t.unavailable?'Couldn’t verify':(t.searched?'Web search':t.attachment?'Writing':'AI reply'),t.provider].filter(Boolean).join(' · '))+'</div><div class="reply-actions">'+button('to-desk','To Desk','desk',attr,'action-chip')+button('second-look','Second look','compass',attr,'text-btn second-look')+'<button data-action="copy-reply" '+attr+' class="bare" aria-label="Copy reply">'+icon('copy')+'</button><button data-action="more" '+attr+' class="bare" aria-label="More reply actions">'+icon('more')+'</button></div>';
- return '<article class="turn"><div class="question">'+(t.attachment?'<small>'+icon('clip')+' Attached passage</small>':'')+M.esc(t.question)+'</div><div class="byline"><span class="mini-mark">N</span> Nth Nota AI</div>'+answer+'</article>';
+ return '<article class="turn" id="turn-'+i+'"><div class="question">'+(t.attachment?'<small>'+icon('clip')+' Attached passage</small>':'')+M.esc(t.question)+'</div><div class="byline"><span class="mini-mark">N</span> Nth Nota AI</div>'+answer+'</article>';
  }).join('')+'</div>';
  }
+ const footer=ConversationTools.footer();if(footer)main.insertAdjacentHTML('beforeend',footer);
  $('question').value=thread.draft;
  syncComposer();
  if(scroll)requestAnimationFrame(()=>main.scrollTop=main.scrollHeight);
@@ -146,7 +149,7 @@ function shell(){
  document.querySelectorAll('nav button').forEach(b=>{const active=b.dataset.action===(page==='card'?'desk':page);b.classList.toggle('active',active);if(active)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
 }
 function navigate(dest){
- if(LiveChat.active()){if(dest==='chat')LiveChat.view(false);else LiveChat.end();}
+ if(LiveChat.active()){if(dest==='chat'&&page==='chat')LiveChat.view(false);else LiveChat.end();}
  flush();if(sheet)closeSheet();page=dest;query='';shell();$('main').scrollTop=0;
  if(dest==='chat')renderChat(true);else if(dest==='card')renderCard();else renderLibrary(true);
 }
@@ -191,10 +194,10 @@ function newCard(type,index){
 function putCard(){if(!card)return;card.updated=Date.now();persist(card.id,card);}
 function renderCard(){
  const c=card,main=$('main');if(!c){navigate('desk');return;}
- main.innerHTML='<div class="library editor">'+button('desk','Desk','back','','text-btn')+'<div class="editor-label"><span class="tile-icon '+tone(c.type)+'">'+icon(typeIcon(c.type))+'</span><span>'+c.type+'</span><span class="spacer"></span><button class="bare" aria-label="Card options" data-action="card-menu" data-id="'+c.id+'">'+icon('more')+'</button></div><textarea id="card-title" rows="1" class="title-input" aria-label="Card title" maxlength="120"></textarea><div id="card-content"></div>'+button('ask-card','Ask about this card','spark','','action-chip')+sourceRows(c.sources)+(c.origin && threads.has(c.origin)?button('open-thread','Original conversation','chat','data-id="'+c.origin+'"','text-btn'):'')+'</div>';
+ main.innerHTML='<div class="library editor">'+button('desk','Desk','back','','text-btn')+'<div class="editor-label"><span class="tile-icon '+tone(c.type)+'">'+icon(typeIcon(c.type))+'</span><span>'+c.type+'</span><span class="spacer"></span><button class="bare" aria-label="Card options" data-action="card-menu" data-id="'+c.id+'">'+icon('more')+'</button></div><textarea id="card-title" rows="1" class="title-input" aria-label="Card title" maxlength="120"></textarea><div id="card-content"></div>'+(c.type==='Checklist'?button('walk-start','Walk me through it','wave','','action-chip'):button('edit-passage','Change just that','pen','','action-chip'))+(c.undoEdit?button('undo-edit','Undo last edit','back','','text-btn'):'')+button('ask-card','Ask about this card','spark','','action-chip')+sourceRows(c.sources)+(c.origin && threads.has(c.origin)?button(Number.isInteger(c.sourceIndex)?'source-line':'open-thread',Number.isInteger(c.sourceIndex)?'Go to spoken line':'Original conversation','chat','data-id="'+c.origin+'" data-i="'+c.sourceIndex+'"','text-btn'):'')+'</div>';
  $('card-title').value=c.title;fitText($('card-title'));
  if(c.type==='Checklist'){
- $('card-content').innerHTML='<div id="checklist">'+c.items.map((x,i)=>'<div class="check-row"><input type="checkbox" aria-label="Mark item '+(i+1)+' complete" data-i="'+i+'" '+(x.done?'checked':'')+'><textarea rows="2" class="check-text" data-i="'+i+'" aria-label="Item '+(i+1)+'"></textarea><button class="bare" data-action="remove-item" aria-label="Remove item '+(i+1)+'" data-i="'+i+'">'+icon('close')+'</button></div>').join('')+'</div>'+button('add-item','Add item','plus','','text-btn');
+ $('card-content').innerHTML='<div id="checklist">'+c.items.map((x,i)=>'<div class="check-row"><input type="checkbox" aria-label="Mark item '+(i+1)+' complete" data-i="'+i+'" '+(x.done?'checked':'')+'><textarea rows="2" class="check-text" data-i="'+i+'" aria-label="Item '+(i+1)+'"></textarea><button class="bare" data-action="remove-item" aria-label="Remove item '+(i+1)+'" data-i="'+i+'">'+icon('close')+'</button></div>'+(x.notes||[]).map(note=>'<p class="step-note">Observation · '+M.esc(note)+'</p>').join('')).join('')+'</div>'+button('add-item','Add item','plus','','text-btn');
  main.querySelectorAll('.check-text').forEach((el,i)=>{el.value=c.items[i].text;fitText(el);});
  }else{$('card-content').innerHTML='<textarea id="card-body" aria-label="Card text" placeholder="Start writing…" maxlength="160000"></textarea>';$('card-body').value=c.body;}
 }
@@ -218,13 +221,14 @@ function runTurn(t,prior,voice=null){
  return true;
 }
 function send(){
+ if(!job&&!thread.attachment&&Thoughts.command(thread.draft)==='leave it here'){thread.draft='';ConversationTools.bookmark();return;}
  if(job){stopJob();return;}
  const question=thread.draft.trim();if(!question)return;if(!N.cloud()&&(thread.attachment||!phoneIntent(question,thread.turns[thread.turns.length-1]))){consentDialog();return;}
  if(question.length>2000){notice('Questions can contain up to 2,000 characters.');return;}
  submitQuestion(question,thread.attachment,null);
 }
 function submitQuestion(question,attachment,voice){
- const t={question,attachment,mode:thread.mode,status:'waiting',sources:[]};
+ const t={question,attachment,spoken:!!voice,mode:thread.mode,status:'waiting',sources:[]};
  if(attachment&&M.request(t,[]).prompt.length>16000){notice('Shorten your question or attachment to fit the writing request.');return false;}
  const prior=thread.turns.slice();
  thread.turns.push(t);
@@ -271,7 +275,7 @@ function replaceDraft(text){
 let pendingDraft='';
 function setDraft(text){if(sheet)closeSheet();thread.draft=text;saveThread();renderChat();$('question').focus();}
 function newMenu(){
- modal('New conversation',button('start','Regular chat','chat')+button('temporary','Temporary chat','eye')+'<p class="desc">Temporary chats stay out of History. You can still choose to save an individual answer to Desk.</p>');
+ modal('New conversation',(thread.turns.length?button('bookmark','Leave it here','note'):'')+button('start','Regular chat','chat')+button('temporary','Temporary chat','eye')+'<p class="desc">Temporary chats stay out of History. You can still choose to save an individual answer to Desk.</p>');
 }
 function startThread(temp){if(thread.temporary&&(thread.turns.length||thread.draft||thread.attachment)){pendingTemp=temp;confirmAction('Leave temporary chat?','Its conversation and draft will be discarded. Cards you saved are on your Desk.','discard-temp','Leave and start chat');}else chooseThread(M.newThread(temp));}
 let pendingTemp=false;
@@ -322,6 +326,27 @@ document.addEventListener('click',event=>{
  case 'remove-attachment':thread.attachment='';saveThread();closeSheet();syncComposer();break;
  case 'live-menu':LiveChat.menu();break;
  case 'live-consent':N.consent(true);LiveChat.menu();break;
+ case 'live-pin':LiveChat.localCommand('Hold that thought');break;
+ case 'pin-line':ConversationTools.pin('',i);break;
+ case 'ramble-start':ConversationTools.beginRamble();LiveChat.start(false);break;
+ case 'ramble-toggle':LiveChat.localCommand(thread.ramble?"I'm done":"Let me ramble");break;
+ case 'ramble-finish':if(LiveChat.active())LiveChat.localCommand("I'm done");else ConversationTools.finishRamble();break;
+ case 'focus-idea':replaceDraft('Help me explore this idea: '+thread.turns[i].ideas[Number(el.dataset.n)]);break;
+ case 'bookmark':ConversationTools.bookmark();break;
+ case 'save-bookmark':ConversationTools.saveBookmark();break;
+ case 'clear-bookmark':delete thread.bookmark;saveThread();closeSheet();renderChat(true);break;
+ case 'resume-bookmark':replaceDraft([thread.bookmark.note,thread.bookmark.next].filter(Boolean).join('\n\n'));break;
+ case 'source-line':if(card)ConversationTools.openSource(card);break;
+ case 'walk-start':Walkthrough.start();break;
+ case 'walk-repeat':LiveChat.localCommand('repeat');break;
+ case 'walk-done':LiveChat.localCommand('done');break;
+ case 'walk-note':LiveChat.localCommand('I found a problem');break;
+ case 'edit-passage':Revision.open();break;
+ case 'dictate-edit':Revision.dictate();break;
+ case 'request-edit':Revision.request();break;
+ case 'apply-edit':Revision.apply();break;
+ case 'refine-edit':Revision.form();break;
+ case 'undo-edit':Revision.undo();break;
  case 'live-start':LiveChat.start(v==='dot');break;
  case 'live-switch':LiveChat.view(!LiveChat.expanded());break;
  case 'live-mute':LiveChat.mute();break;
@@ -394,7 +419,7 @@ document.addEventListener('input',e=>{
   thread.draft=target.value;thread.updated=Date.now();clearTimeout(draftTimer);draftTimer=setTimeout(()=>saveThread(),220);syncComposer();
  }else if(target.id==='filter'){query=target.value;renderLibrary(false);}
  else if(target.id==='card-title'){card.title=target.value.trim()||'Untitled '+card.type.toLowerCase();queueCard();}
- else if(target.id==='card-body'){card.body=target.value;queueCard();}
+ else if(target.id==='card-body'){card.body=target.value;delete card.undoEdit;const undo=document.querySelector('[data-action=undo-edit]');if(undo)undo.remove();queueCard();}
  else if(target.classList.contains('check-text')){card.items[Number(target.dataset.i)].text=target.value;queueCard();}
 });
 document.addEventListener('change',e=>{if(e.target.matches('.check-row input[type=checkbox]')){card.items[Number(e.target.dataset.i)].done=e.target.checked;putCard();}});
@@ -429,7 +454,8 @@ window.notaEvent=(event,...args)=>{
   chooseThread(M.newThread(true));reviewAttachment(args[0]);return;
  }
  if(event==='file'){incomingFile(args[0],args[1]);return;}
- if(event==='dictated'){if(args[0]===thread.id){const text=(thread.draft+' '+args[1]).trim();if(text.length>2000){notice('Dictation would exceed the message limit.');return;}setDraft(text);}return;}
+ if(event==='dictated'){if(Revision.dictated(args[0],args[1]))return;if(args[0]===thread.id){const text=(thread.draft+' '+args[1]).trim();if(text.length>2000){notice('Dictation would exceed the message limit.');return;}setDraft(text);}return;}
+ if((event==='answer'||event==='failure')&&Revision.result(event,args[0],args[1]))return;
  if(!job||job.id!==args[0])return;
  const active=job;job=null;const t=active.turn;
  if(event==='failure'){t.status='error';t.error=args[1];}

@@ -168,6 +168,9 @@ public final class MainActivity extends Activity {
             store.edit().putBoolean("consent", yes).apply();
             if (!yes) runOnUiThread(() -> {live.end("", "Cloud questions are off."); stopRequest();});
         }
+        @JavascriptInterface public void pinTick() {
+            runOnUiThread(() -> web.playSoundEffect(android.view.SoundEffectConstants.CLICK));
+        }
         @JavascriptInterface public void theme(boolean night) { runOnUiThread(() -> colors(night)); }
         @JavascriptInterface public void stop() { runOnUiThread(MainActivity.this::stopRequest); }
         @JavascriptInterface public void ask(String id, String payload) {
