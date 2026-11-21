@@ -1,7 +1,7 @@
-name: Shared Nota client checks
+name: 3D chat and weather permissions
 on:
   push:
-    branches: [qa/shared-worker-533]
+    branches: [qa/shared-worker-533-3d-permission]
 permissions:
   contents: read
 jobs:
@@ -13,7 +13,7 @@ jobs:
       fail-fast: false
       matrix:
         api: [36, 37]
-        client: [standalone, 3d, ten, eleven]
+        client: [3d]
         include:
           - client: 3d
             repository: bdredenbach/Nth-Desktop-3D
@@ -59,12 +59,14 @@ jobs:
         if: matrix.client != 'standalone'
         working-directory: client
         run: |
+          python3 ../tools/regression16/permission-flow.py
           tasks=(:app:assembleDebug :app:assembleDebugAndroidTest)
           if [ -d fixture ]; then tasks+=(:fixture:assembleDebug); fi
           bash gradlew --no-daemon "${tasks[@]}"
       - uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: ${{ matrix.api }}
+          api-level: ${{ matrix.api == 37 && '37.0' || '36' }}
+          profile: ${{ matrix.client == '3d' && 'pixel_7' || 'pixel_2' }}
           target: google_apis
           arch: x86_64
           disable-animations: true
