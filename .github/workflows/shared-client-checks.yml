@@ -1,7 +1,7 @@
 name: Shared Nota client checks
 on:
   push:
-    branches: [qa/shared-worker-533]
+    branches: [qa/shared-worker-533-api37]
 permissions:
   contents: read
 jobs:
@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        api: [36, 37]
+        api: [37]
         client: [standalone, 3d, ten, eleven]
         include:
           - client: 3d
@@ -64,7 +64,7 @@ jobs:
           bash gradlew --no-daemon "${tasks[@]}"
       - uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: ${{ matrix.api }}
+          api-level: '37.0'
           target: google_apis
           arch: x86_64
           disable-animations: true
