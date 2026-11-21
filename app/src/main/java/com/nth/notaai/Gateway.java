@@ -16,18 +16,6 @@ final class Gateway {
     static final String ROOT = "https://nth-nota-free-ai.bdredenbach.workers.dev/v1/";
     private static final String VISION = "https://nth-nota-vision.bdredenbach.workers.dev/v1/vision";
 
-    static boolean visionAvailable() {
-        HttpsURLConnection http = null;
-        try {
-            http = (HttpsURLConnection)new URL(VISION).openConnection();
-            http.setConnectTimeout(2500);http.setReadTimeout(2500);
-            http.setInstanceFollowRedirects(false);
-            if (http.getResponseCode()!=200) return false;
-            try (InputStream in = http.getInputStream()) { return new JSONObject(readUtf8(in,1024)).optBoolean("vision"); }
-        } catch (Exception ignored) { return false; }
-        finally { if (http!=null) http.disconnect(); }
-    }
-
     JSONObject vision(JSONObject input, byte[] pixels) throws Exception {
         JSONObject body = new JSONObject().put("question",input.getString("question")).put("history",input.getJSONArray("history"))
             .put("image",android.util.Base64.encodeToString(pixels,android.util.Base64.NO_WRAP)).put("consentAccepted",true);
@@ -78,7 +66,7 @@ final class Gateway {
             http.setRequestProperty("Content-Type", "application/json");
             http.setRequestProperty("Accept", "application/json");
             http.setRequestProperty("Origin", "https://appassets.androidplatform.net");
-            http.setRequestProperty("User-Agent", "NthNotaAI/0.7.0 (Android)");
+            http.setRequestProperty("User-Agent", "NthNotaAI/0.8.0 (Android)");
             http.setFixedLengthStreamingMode(bytes.length);
             try (OutputStream out = http.getOutputStream()) {
                 if (canceled) throw new IOException("Stopped.");

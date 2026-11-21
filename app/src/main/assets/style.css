@@ -146,3 +146,13 @@ pre,code{font-family:monospace;background:var(--muted);border-radius:4px;font-si
 .turn-image{display:block;background:transparent;border:0;padding:0;margin:0 0 8px}
 .message-image{display:block;max-width:min(205px,60vw);max-height:165px;border-radius:10px;object-fit:contain}
 .image-preview{display:block;width:100%;height:auto;max-height:42vh;object-fit:contain;border-radius:8px;margin-bottom:12px}
+
+#dialog[data-kind="attachments"]{position:absolute;bottom:64px;left:max(12px,calc((100% - 650px)/2));width:min(270px,calc(100% - 24px));padding:8px;border-radius:19px}
+#dialog[data-kind="attachments"] .dialog-head{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+#dialog[data-kind="attachments"] .dialog-head:focus-within{position:static;width:auto;height:auto;clip-path:none;margin:0}
+#dialog[data-kind="attachments"] .choice{width:100%;padding:12px 14px;gap:14px;min-height:50px;border-radius:12px}
+#dialog[data-kind="attachments"] .choice svg{width:22px;height:22px}
+.attached-file>button:first-child{min-width:0;padding:7px 12px}
+.attached-file span,.turn-file span{min-width:0;overflow-wrap:anywhere}.attached-file>button>svg,.turn-file svg{width:22px;flex:none}
+.file-preview{white-space:pre-wrap;overflow-wrap:anywhere;max-height:51vh;overflow:auto;font:inherit;font-size:.87rem;line-height:1.5;background:var(--muted);border-radius:12px;padding:12px}
+.turn-file{display:flex;align-items:center;gap:7px;text-align:left;color:inherit;font-weight:650;margin:0 0 6px}

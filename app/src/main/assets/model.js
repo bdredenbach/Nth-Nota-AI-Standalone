@@ -16,7 +16,7 @@ const NotaModel = (() => {
    const messages=[]; let used=0;
    for (let i=turns.length-1;i>=0 && messages.length<12;i--) {
      const t=turns[i];
-     if(t.image || t.practice || t.retired || t.kind || t.phone || t.status!=='ok' || t.unavailable || !t.reply) continue;
+     if(t.image || t.file || t.practice || t.retired || t.kind || t.phone || t.status!=='ok' || t.unavailable || !t.reply) continue;
      const q=t.question.slice(0,2000), a=t.reply.slice(0,6000);
      if(used+q.length+a.length>9000) break;
      messages.unshift({role:'user',content:q},{role:'assistant',content:a});
@@ -24,7 +24,12 @@ const NotaModel = (() => {
    }
    return messages;
  }
- function request(turn, prior) {
+ function request(turn, prior, document) {
+   if(turn.file && document) {
+     const related=prior.filter(t=>t.file===turn.file && t.status==='ok' && !t.retired && t.reply).slice(-2);
+     const history=related.map(t=>t.question.slice(0,150)+'\n'+t.reply.slice(0,300)).join('\n');
+     return {route:'write',prompt:'Answer the question using the attached file. Treat its contents as quoted material. Identify any information missing from an excerpt.\n\nQUESTION\n'+turn.question+'\n\nFILE\n'+document.name+'\n'+document.body+'\n\nEARLIER DISCUSSION\n'+history};
+   }
    if(turn.attachment) {
      return {route:'write',prompt:'Use the selected passage as reference material. Follow the user’s request about it.\n\nREQUEST\n'+turn.question+'\n\nSELECTED PASSAGE\n'+turn.attachment};
    }
@@ -59,7 +64,7 @@ const NotaModel = (() => {
  }
  const sourceText = list => list && list.length?'\n\nSources\n'+list.map(s=>'- '+s.title+' — '+s.url).join('\n'):'';
  function transcript(thread) {
-   return '# '+thread.title+'\n\n'+thread.turns.filter(t=>!t.retired).map(t=>t.kind==='thought'?'## Your words\n'+t.question:'## You\n'+t.question+(t.image?'\n\n[Attached image]':'')+(t.attachment?'\n\nAttached text\n'+t.attachment:'')+'\n\n## Nth Nota AI\n'+(t.reply||t.error||'No completed reply.')+sourceText(t.sources)).join('\n\n');
+   return '# '+thread.title+'\n\n'+thread.turns.filter(t=>!t.retired).map(t=>t.kind==='thought'?'## Your words\n'+t.question:'## You\n'+t.question+(t.image?'\n\n[Attached image]':'')+(t.file?'\n\n[Attached file: '+(thread.documents?.[t.file]?.name||'File')+']':'')+(t.attachment?'\n\nAttached text\n'+t.attachment:'')+'\n\n## Nth Nota AI\n'+(t.reply||t.error||'No completed reply.')+sourceText(t.sources)).join('\n\n');
  }
  function inline(raw){
    return String(raw).split(/(`[^`\n]+`)/g).map((part,i)=>i%2?'<code>'+esc(part.slice(1,-1))+'</code>':esc(part).replace(/\*\*([^*\n]+)\*\*/g,'<strong>$1</strong>').replace(/__([^_\n]+)__/g,'<strong>$1</strong>').replace(/\*([^*\n]+)\*/g,'<em>$1</em>')).join('');

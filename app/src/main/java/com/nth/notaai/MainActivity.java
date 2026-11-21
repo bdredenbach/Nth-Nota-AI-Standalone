@@ -21,14 +21,16 @@ import java.util.concurrent.Executors;
 
 public final class MainActivity extends Activity {
     private static final String BASE = "https://appassets.androidplatform.net/";
-    private static final int FILE = 71, VOICE = 72, EXPORT = 73, IMAGE = 74;
+    private static final int FILE = 71, VOICE = 72, EXPORT = 73, IMAGE = 74, CAMERA = 75, CHAT_FILE = 76;
     private final ExecutorService network = Executors.newCachedThreadPool();
     private final ExecutorService files = Executors.newSingleThreadExecutor();
     private ChatImages images;
     private Uri sharedImage;
     private String imageTarget = "";
     private boolean imageTemporary;
-    private Uri deferredPick;
+    private Uri deferredPick, deferredFile;
+    private String fileTarget = "";
+    private File cameraFile;
     private java.util.concurrent.Future<?> imageTask;
     private WebView web;
     private FrameLayout frame;
@@ -42,8 +44,6 @@ public final class MainActivity extends Activity {
     private LiveVoice live;
     private String pendingVoice = "";
     private boolean ready, dark;
-    private long lastVisionCheck;
-    private boolean cloudVisionReady;
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -53,6 +53,11 @@ public final class MainActivity extends Activity {
         if (state != null) {
             imageTarget = state.getString("imageTarget","");
             imageTemporary = state.getBoolean("imageTemporary");
+            fileTarget = state.getString("fileTarget", "");
+            String cameraName = state.getString("cameraName", "");
+            if (cameraName.matches("photo-[a-zA-Z0-9_-]+\\.jpg")) cameraFile = new File(new File(getCacheDir(), "camera"), cameraName);
+            deferredPick = state.getParcelable("deferredPick");
+            deferredFile = state.getParcelable("deferredFile");
         }
         frame = new FrameLayout(this);
         phone = new PhoneHelp(this);
@@ -145,7 +150,12 @@ public final class MainActivity extends Activity {
     private void deliverIncoming() {
         if (deferredPick!=null) {
             Uri selected=deferredPick;deferredPick=null;
-            loadImage(selected,imageTarget,imageTemporary);
+            finishImagePick(selected);
+        }
+        if (deferredFile != null) {
+            Uri selected = deferredFile;
+            deferredFile = null;
+            loadChatFile(selected, fileTarget);
         }
         if (sharedImage != null) emit("sharedImage");
         if (incoming == null) return;
@@ -171,15 +181,6 @@ public final class MainActivity extends Activity {
         StringBuilder js = new StringBuilder("window.notaEvent && window.notaEvent(").append(JSONObject.quote(event));
         for (String v : values) js.append(",").append(JSONObject.quote(v == null ? "" : v));
         web.evaluateJavascript(js.append(")").toString().replace("\u2028","\\u2028").replace("\u2029","\\u2029"), null);
-    }
-
-    private synchronized boolean checkVision() {
-        long now = android.os.SystemClock.elapsedRealtime();
-        if (lastVisionCheck==0 || now-lastVisionCheck>60000) {
-            cloudVisionReady=Gateway.visionAvailable();
-            lastVisionCheck=now;
-        }
-        return cloudVisionReady;
     }
 
     private void stopRequest() {
@@ -270,6 +271,35 @@ public final class MainActivity extends Activity {
                 catch (ActivityNotFoundException missing) { start(new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("image/*"),IMAGE); }
             });
         }
+        @JavascriptInterface public void takePhoto(String target, boolean temporary) {
+            runOnUiThread(() -> {
+                imageTarget = target;
+                imageTemporary = temporary;
+                try {
+                    File dir = new File(getCacheDir(), "camera");
+                    if (!dir.isDirectory() && !dir.mkdirs()) throw new IOException();
+                    cameraFile = File.createTempFile("photo-", ".jpg", dir);
+                    Uri outputUri = cameraUri();
+                    Intent camera = new Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE)
+                        .putExtra(android.provider.MediaStore.EXTRA_OUTPUT, outputUri)
+                        .addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    camera.setClipData(ClipData.newRawUri("Photo", outputUri));
+                    startActivityForResult(camera, CAMERA);
+                } catch (IOException | RuntimeException unavailable) {
+                    clearCamera();
+                    emit("notice", "Couldn’t open the camera. Try Photos instead.");
+                }
+            });
+        }
+        @JavascriptInterface public void pickChatFile(String target) {
+            runOnUiThread(() -> {
+                fileTarget = target;
+                // Providers report some .md, .log and .zip files as generic binary data.
+                start(new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*")
+                    .putExtra(Intent.EXTRA_MIME_TYPES, new String[]{"text/*", "application/json", "application/zip",
+                        "application/x-zip-compressed", "application/octet-stream"}), CHAT_FILE);
+            });
+        }
         @JavascriptInterface public void acceptSharedImage(String target, boolean temporary) {
             runOnUiThread(() -> {
                 Uri uri = sharedImage; sharedImage = null;
@@ -286,7 +316,6 @@ public final class MainActivity extends Activity {
                     status == com.google.mlkit.genai.common.FeatureStatus.DOWNLOADABLE ? "downloadable" :
                     status == com.google.mlkit.genai.common.FeatureStatus.DOWNLOADING ? "downloading" : "unavailable";
                 runOnUiThread(() -> emit("imageStatus",name));
-                if (cloud() && checkVision()) runOnUiThread(() -> emit("cloudVisionReady"));
             });
         }
         @JavascriptInterface public void setupVision() {
@@ -402,23 +431,76 @@ public final class MainActivity extends Activity {
     }
     @Override protected void onSaveInstanceState(Bundle state) {
         super.onSaveInstanceState(state);state.putString("imageTarget",imageTarget);state.putBoolean("imageTemporary",imageTemporary);
+        state.putString("fileTarget", fileTarget);
+        if (cameraFile != null) state.putString("cameraName", cameraFile.getName());
+        state.putParcelable("deferredPick", deferredPick);
+        state.putParcelable("deferredFile", deferredFile);
+    }
+    private Uri cameraUri() {
+        return androidx.core.content.FileProvider.getUriForFile(this, getPackageName() + ".camera", cameraFile);
+    }
+    private void clearCamera() {
+        if (cameraFile == null) return;
+        cameraFile.delete();
+        cameraFile = null;
+    }
+    private void finishImagePick(Uri uri) {
+        File taken = cameraFile;
+        cameraFile = null;
+        loadImage(uri, imageTarget, imageTemporary, taken);
+    }
+    private void loadChatFile(Uri uri, String target) {
+        files.execute(() -> {
+            try {
+                if (!"content".equals(uri.getScheme())) throw new IOException("Choose a file from the Android picker.");
+                String mime = getContentResolver().getType(uri);
+                String name = "Attachment";
+                String column = android.provider.OpenableColumns.DISPLAY_NAME;
+                try (android.database.Cursor row = getContentResolver().query(uri, new String[]{column}, null, null, null)) {
+                    if (row != null && row.moveToFirst() && !row.isNull(0)) name = row.getString(0);
+                }
+                try (InputStream input = getContentResolver().openInputStream(uri)) {
+                    if (input == null) throw new IOException("Couldn’t open this file.");
+                    AttachedFile file = AttachedFile.read(input, name, mime == null ? "" : mime, getCacheDir());
+                    String payload = new JSONObject().put("name",file.name).put("detail",file.detail).put("body",file.body).toString();
+                    runOnUiThread(() -> emit("chatFile", target, payload));
+                }
+            } catch (Exception error) {
+                runOnUiThread(() -> emit("notice", error instanceof IOException && error.getMessage() != null
+                    ? error.getMessage() : "Couldn’t read that file. Try another copy."));
+            }
+        });
     }
     private void loadImage(Uri uri,String target,boolean temporary) {
+        loadImage(uri, target, temporary, null);
+    }
+    private void loadImage(Uri uri,String target,boolean temporary,File captured) {
         files.execute(() -> {
             try {
                 JSONObject descriptor=images.importImage(uri,temporary);
                 runOnUiThread(() -> emit("imagePicked",target,descriptor.toString()));
             } catch (Exception e) {
                 runOnUiThread(() -> emit("notice",e instanceof IOException && e.getMessage()!=null?e.getMessage():"Couldn’t open that image. Try another copy."));
+            } finally {
+                if (captured != null) captured.delete();
             }
         });
     }
     @Override protected void onActivityResult(int code, int result, Intent data) {
         super.onActivityResult(code, result, data);
+        if (code == CAMERA) {
+            if (result == RESULT_OK && cameraFile != null) {
+                Uri selected = cameraUri();
+                if (ready) finishImagePick(selected); else deferredPick = selected;
+            } else clearCamera();
+            return;
+        }
         if (result != RESULT_OK || data == null) {if (code == EXPORT) exportText = null; return;}
         final String target = importTarget;
         if (code == IMAGE && data.getData() != null) {
-            if(ready) loadImage(data.getData(),imageTarget,imageTemporary); else deferredPick=data.getData();
+            if(ready) finishImagePick(data.getData()); else deferredPick=data.getData();
+        } else if (code == CHAT_FILE && data.getData() != null) {
+            if (ready) loadChatFile(data.getData(), fileTarget); else deferredFile = data.getData();
         } else if (code == VOICE) {
             ArrayList<String> words = data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
             if (words != null && !words.isEmpty()) emit("dictated", target, words.get(0));

@@ -35,7 +35,7 @@ const LiveChat = (() => {
  }
  function menu() {
   if(job){notice('Finish or stop the current reply before starting live voice.');return;}
-  const description=thread.image ? 'The attached image stays selected for spoken follow-ups. Image answers use the method shown in its preview.' : N.cloud()?'During live voice, AI questions are sent to Nth Nota as text. Phone commands are handled locally.':'Cloud questions are off. You can ask about your phone, open a shortcut or use weather if enabled.';
+  const description=thread.image ? 'Spoken questions use the attached photo.' : thread.file?'Spoken questions use the attached file’s text and file names.':N.cloud()?'During live voice, AI questions are sent to Nth Nota as text. Phone commands are handled locally.':'Cloud questions are off. You can ask about your phone, open a shortcut or use weather if enabled.';
   modal('Live voice','<p class="desc">Android handles microphone audio and may use its online speech service. '+description+'</p>'+
    button('live-start','Voice in Chat','chat','data-val="chat"')+
    button('live-start','Live View','wave','data-val="dot"')+button('ramble-start','Let me ramble','mic')+
@@ -43,6 +43,7 @@ const LiveChat = (() => {
  }
  function start(expanded,mode='chat') {
   if(job||session||page!==(mode==='walk'?'card':'chat'))return;
+  if(mode==='chat' && thread.image && ChatImages.needsChoice(thread.imageMode)){ChatImages.choose(()=>start(expanded,mode));return;}
   closeSheet();
   document.activeElement.blur();
   session={id:M.id('live'),thread:thread.id,mode,cardId:mode==='walk'?card.id:'',expanded,muted:false,token:'',state:'preparing',caption:'',silences:0};
@@ -184,7 +185,7 @@ const LiveChat = (() => {
     if(localCommand(text,true))return;
     if(job){pauseMic('Another reply is in progress.');return;}
     if(text.length>2000){pauseMic('That turn was too long to send. Try a shorter question.');return;}
-    if(!N.cloud()&&(thread.image?['text','cloud'].includes(thread.imageMode):(thread.rehearsal||!phoneIntent(text,thread.turns[thread.turns.length-1])))){s.unsent=text;pauseMic('Cloud questions are off. Enable them in Settings for general AI questions, or resume to ask about your phone.');return;}
+    if(!N.cloud()&&(thread.image?thread.imageMode==='text':(thread.rehearsal||thread.file||!phoneIntent(text,thread.turns[thread.turns.length-1])))){s.unsent=text;pauseMic('Cloud questions are off. Enable them in Settings for general AI questions, or resume to ask about your phone.');return;}
     s.token='';
     s.silences=0;
     s.state='thinking';

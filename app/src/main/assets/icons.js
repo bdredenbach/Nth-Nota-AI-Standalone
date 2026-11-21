@@ -1,5 +1,6 @@
 'use strict';
 const paths = {
+ camera:'M3 7h4l2-3h6l2 3h4v13H3z M16 13a4 4 0 1 1-8 0 4 4 0 1 1 8 0z',
  image:'M3 4h18v16H3z M3 16l5-5 4 4 3-4 6 6 M16 8h.1',
  wave:"M3 10v4m4-8v12m5-15v18m5-15v12m4-8v4",
  new:'M13 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-7 M10 14l1-4 7-7 3 3-7 7-4 1z',

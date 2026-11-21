@@ -21,7 +21,7 @@ function persist(key,value) {
 function remember(){persist('prefs',prefs);}
 function saveThread(t=thread){
  if(t.temporary)return;
- if(!t.turns.length&&!t.draft.trim()&&!t.attachment&&!t.image&&!t.bookmark&&!t.ramble&&!t.rehearsal && !threads.has(t.id))return;
+ if(!t.turns.length&&!t.draft.trim()&&!t.attachment&&!t.file&&!t.image&&!t.bookmark&&!t.ramble&&!t.rehearsal && !threads.has(t.id))return;
  threads.set(t.id,t);persist(t.id,t);
  if(t===thread && prefs.last!==t.id){prefs.last=t.id;remember();}
 }
@@ -46,9 +46,10 @@ function modal(title,body,kind){
  if(LiveChat.active())LiveChat.end();
  if(sheet==='revision'&&kind!=='revision')Revision.close();
  if(!sheet)lastFocus=document.activeElement;sheet=kind||title;
+ $('dialog').dataset.kind=sheet;
  $('dialog').innerHTML='<div class="dialog-head"><h2 id="dialog-title">'+M.esc(title)+'</h2><button aria-label="Close dialog" class="icon-btn" data-action="close">'+icon('close')+'</button></div>'+body;
  $('overlay').hidden=false;$('app').setAttribute('aria-hidden','true');
- $('dialog').querySelector('button').focus();
+ $('dialog').querySelector(kind==='attachments'?'[data-action=camera]':'button').focus();
 }
 function closeSheet(){if(sheet==='revision')Revision.close();stopPreview();sheet='';$('overlay').hidden=true;$('app').removeAttribute('aria-hidden');if(lastFocus && document.contains(lastFocus))lastFocus.focus();lastFocus=null;}
 function confirmAction(title,desc,action,label){modal(title,'<p class="desc">'+M.esc(desc)+'</p>'+button(action,label,null,'','primary'));}
@@ -101,17 +102,17 @@ function phoneActions(t,i){
 }
 function showSettings(){
  modal('Settings',button('phone-setup','Phone setup','sliders','','choice framed')+'<h3>Cloud questions</h3><p class="desc">When you send, your question and recent replies go to Nth Nota’s service. Search terms and requested links can go to its search and page providers. Attached text goes to the writing service when you send it.</p>'+
- button('cloud',N.cloud()?'Cloud questions on':'Cloud questions off',N.cloud()?'check':'lock','','choice framed')+
+ button('cloud',N.cloud()?'Cloud questions on':'Cloud questions off',N.cloud()?'check':'lock','','choice framed')+ChatImages.settings()+
  '<h3>Appearance</h3><div class="chips">'+['system','light','dark'].map(k=>button('theme',k[0].toUpperCase()+k.slice(1),null,'data-val="'+k+'" aria-pressed="'+(prefs.appearance===k)+'"','pill'+(prefs.appearance===k?' selected':''))).join('')+'</div>'+
  '<h3>Speaking voice</h3><div class="chips">'+[['heart','Kokoro · Heart'],['system','Android voice']].map(([key,name])=>{const active=(prefs.voice||'heart')===key;return button('set-voice',name,null,'data-val="'+key+'" aria-pressed="'+active+'"','pill'+(active?' selected':''));}).join('')+'</div>'+
  '<p class="desc">'+(prefs.voice==='system'?'Uses your Android speech engine.':'Heart speaks American English and comes with Nota. It works offline.')+'</p>'+
  '<label class="pace-label" for="voice-pace">Speaking pace <output id="pace-value" for="voice-pace">'+voiceRate()+'%</output></label>'+
  '<input type="range" id="voice-pace" aria-label="Speaking pace" min="75" max="110" step="5" value="'+voiceRate()+'" aria-valuetext="'+voiceRate()+' percent">'+
  '<button class="choice framed" data-action="preview-voice">'+icon('sound')+'<span id="voice-preview-label" aria-live="polite">Preview voice</span></button>'+
- '<h3>On this device</h3><p class="desc">Chats, drafts and Desk cards are stored here. Temporary chats stay in memory. Android handles microphone input through its speech service.</p><p class="version">Nth Nota AI · 0.4.0</p>','settings');
+ '<h3>On this device</h3><p class="desc">Chats, drafts and Desk cards are stored here. Temporary chats stay in memory. Android handles microphone input through its speech service.</p><p class="version">Nth Nota AI · 0.8.0</p>','settings');
 }
 function consentDialog(){
- modal('Allow cloud questions?','<p class="desc">Sending a message shares it and recent replies with Nth Nota’s Cloudflare and Groq service. Web questions can share search terms or requested links with research providers. If you attach text, sending shares that passage too. Image chats can use the on-device model. Choosing screenshot text shares recognized text and positions. Choosing cloud image analysis shares the image itself.</p><p class="desc">You can turn this off in Settings. Your draft stays here until you press Send.</p>'+button('agree','Allow cloud questions','check','','primary')+button('close','Keep off',null,'','choice centered'),'consent');
+ modal('Allow cloud questions?','<p class="desc">Sending a message shares it and recent replies with Nth Nota’s Cloudflare and Groq service. Web questions can share search terms or requested links with research providers. Sending an attached file shares its text and file names. Photos have their own sharing choice.</p><p class="desc">You can turn this off in Settings. Your draft stays here until you press Send.</p>'+button('agree','Allow cloud questions','check','','primary')+button('close','Keep off',null,'','choice centered'),'consent');
 }
 function sourceRows(list){return list && list.length?'<details class="sources"><summary>'+icon('link')+'Sources · '+list.length+'</summary>'+list.map(s=>button('source',s.title,'sendout','data-url="'+M.esc(s.url)+'"','source-row')).join('')+'</details>':'';}
 function emptyHome(){
@@ -126,10 +127,10 @@ function renderChat(scroll=false){
  if(t.kind)return ConversationTools.localTurn(t,i);
  const attr='data-i="'+i+'"';
  let answer;
- if(t.status==='waiting') answer='<div class="working" role="status"><i></i>'+(t.image?'Examining your image…':t.attachment?'Reading your passage…':t.mode==='search'?'Looking for sources…':'Working on your reply…')+'</div>';
+ if(t.status==='waiting') answer='<div class="working" role="status"><i></i>'+(t.image?'Examining your image…':t.file?'Reading your file…':t.attachment?'Reading your passage…':t.mode==='search'?'Looking for sources…':'Working on your reply…')+'</div>';
  else if(t.status==='error')answer='<div class="problem"><p>'+M.esc(t.error)+'</p>'+button('retry','Retry','arrow',attr,'text-btn')+button('editq','Edit question','pen',attr,'text-btn')+'</div>';
- else answer='<div class="answer-text">'+M.markdown(t.reply)+'</div>'+(t.canAskText?button('ask-image-text','Ask using screenshot text','pen',attr,'action-chip'):'')+(t.quote?button('practice-line','“'+t.quote+'”','chat','data-i="'+t.line+'"','choice framed'):'')+(t.phone?phoneActions(t,i):'')+sourceRows(t.sources)+(t.unavailable?button('web-fallback','Search in browser','sendout',attr,'text-btn'):'')+'<div class="reply-meta">'+M.esc([t.imageMethod|| (t.phone?(t.weatherData?'Weather · MET Norway':'On this phone'):t.unavailable?'Couldn’t verify':(t.searched?'Web search':t.attachment?'Writing':'AI reply')),t.provider].filter(Boolean).join(' · '))+'</div><div class="reply-actions">'+button('to-desk','To Desk','desk',attr,'action-chip')+button('second-look','Second look','compass',attr,'text-btn second-look')+'<button data-action="copy-reply" '+attr+' class="bare" aria-label="Copy reply">'+icon('copy')+'</button><button data-action="more" '+attr+' class="bare" aria-label="More reply actions">'+icon('more')+'</button></div>';
- return '<article class="turn" id="turn-'+i+'"><div class="question">'+(t.image?ChatImages.turnPhoto(t,i):'')+(t.attachment?'<small>'+icon('clip')+' Attached passage</small>':'')+M.esc(t.question)+'</div><div class="byline"><span class="mini-mark">N</span> '+M.esc(t.practice==='role'?thread.rehearsal.role:t.practice==='coach'?'Nota · Coach':'Nth Nota AI')+'</div>'+answer+'</article>';
+ else answer='<div class="answer-text">'+M.markdown(t.reply)+'</div>'+(t.canAskText?button('ask-image-text','Ask online about this text','pen',attr,'action-chip'):'')+(t.quote?button('practice-line','“'+t.quote+'”','chat','data-i="'+t.line+'"','choice framed'):'')+(t.phone?phoneActions(t,i):'')+sourceRows(t.sources)+(t.unavailable?button('web-fallback','Search in browser','sendout',attr,'text-btn'):'')+'<div class="reply-meta">'+M.esc([t.imageMethod|| (t.phone?(t.weatherData?'Weather · MET Norway':'On this phone'):t.unavailable?'Couldn’t verify':(t.searched?'Web search':t.attachment?'Writing':'AI reply')),t.provider].filter(Boolean).join(' · '))+'</div><div class="reply-actions">'+button('to-desk','To Desk','desk',attr,'action-chip')+button('second-look','Second look','compass',attr,'text-btn second-look')+'<button data-action="copy-reply" '+attr+' class="bare" aria-label="Copy reply">'+icon('copy')+'</button><button data-action="more" '+attr+' class="bare" aria-label="More reply actions">'+icon('more')+'</button></div>';
+ return '<article class="turn" id="turn-'+i+'"><div class="question">'+(t.image?ChatImages.turnPhoto(t,i):'')+(t.file?button('turn-file',thread.documents?.[t.file]?.name||'File','clip',attr,'turn-file'):'')+(t.attachment?'<small>'+icon('clip')+' Attached passage</small>':'')+M.esc(t.question)+'</div><div class="byline"><span class="mini-mark">N</span> '+M.esc(t.practice==='role'?thread.rehearsal.role:t.practice==='coach'?'Nota · Coach':'Nth Nota AI')+'</div>'+answer+'</article>';
  }).join('')+'</div>';
  }
  if(thread.rehearsal)main.insertAdjacentHTML('afterbegin',Rehearsal.panel());
@@ -139,12 +140,13 @@ function renderChat(scroll=false){
  if(scroll)requestAnimationFrame(()=>main.scrollTop=main.scrollHeight);
 }
 function syncComposer(){
- const attach=!!thread.attachment, image=!!thread.image;
- $('mode').hidden=!!thread.rehearsal;document.querySelector('[data-action=attach]').hidden=!!thread.rehearsal;
+ const attach=!!thread.attachment, image=!!thread.image, doc=thread.documents?.[thread.file];
+ $('mode').hidden=!!thread.rehearsal||image||!!doc;document.querySelector('[data-action=attach]').hidden=!!thread.rehearsal;
  $('mode').innerHTML=icon(image?'image':attach?'pen':thread.mode==='search'?'globe':'spark')+(image?'Image':attach?'Writing':thread.mode==='search'?'Web search':'Auto')+icon('down');
- $('passage').innerHTML=image?ChatImages.composer():attach?button('review','Attached text · '+thread.attachment.length.toLocaleString()+' characters','clip','','attachment'):'';
+ $('passage').innerHTML=image?ChatImages.composer():doc?ChatFiles.composer(doc):attach?button('review','Attached text · '+thread.attachment.length.toLocaleString()+' characters','clip','','attachment'):'';
  const stopped=!!job; $('send').innerHTML=icon(stopped?'stop':'arrow');$('send').setAttribute('aria-label',stopped?'Stop reply':'Send message');
- $('send').disabled=!stopped&&!thread.draft.trim()&&!image;
+ $('send').disabled=!stopped&&!thread.draft.trim()&&!image&&!doc;
+ $('question').placeholder=image?'Ask about this photo…':doc?'Ask about this file…':'Ask Nth Nota…';
  const q=$('question');const width=Math.max(22,Math.floor((q.clientWidth || 315)/8));q.rows=Math.min(4,q.value.split('\n').reduce((n,line)=>n+Math.max(1,Math.ceil(line.length/width)),0));
 }
 function shell(){
@@ -215,8 +217,9 @@ function stopJob(reason='Reply stopped.'){
 }
 function runTurn(t,prior,voice=null){
  if(!voice && LiveChat.active())LiveChat.end();
- const intent=t.image||t.attachment||t.practice?null:phoneIntent(t.question,prior[prior.length-1]);
- const payload=t.practice?Rehearsal.prompt(thread.rehearsal,t,prior):M.request(t,prior);
+ const intent=t.image||t.file||t.attachment||t.practice?null:phoneIntent(t.question,prior[prior.length-1]);
+ if(t.file&&!thread.documents?.[t.file]){notice('Choose this file again to ask about it.');return false;}
+ const payload=t.practice?Rehearsal.prompt(thread.rehearsal,t,prior):M.request(t,prior,thread.documents?.[t.file]);
  if(payload.route==='write'&&payload.prompt.length>16000){notice('Shorten your question or attachment to fit the writing request.');return false;}
  t.status='waiting';delete t.error;job={id:M.id('ask'),turn:t,thread,voice};
  thread.updated=Date.now();saveThread();renderChat(true);
@@ -227,20 +230,22 @@ function runTurn(t,prior,voice=null){
  return true;
 }
 function send(){
- if(!job&&!thread.image&&!thread.attachment&&Thoughts.command(thread.draft)==='leave it here'){thread.draft='';ConversationTools.bookmark();return;}
+ if(!job&&!thread.image&&!thread.file&&!thread.attachment&&Thoughts.command(thread.draft)==='leave it here'){thread.draft='';ConversationTools.bookmark();return;}
  if(job){stopJob();return;}
- const question=thread.draft.trim()||(thread.image?'What can you tell me about this image?':'');if(!question)return;
- if(!thread.image&&!thread.attachment){const origin=thread,local=Studio.command(question);if(local){origin.draft='';saveThread(origin);if(page==='chat'&&origin===thread){renderChat();}if(local.say)notice(local.say);return;}}
- if(!N.cloud()&&(thread.image?['cloud','text'].includes(thread.imageMode):(thread.rehearsal||thread.attachment||!phoneIntent(question,thread.turns[thread.turns.length-1])))){consentDialog();return;}
+ const question=thread.draft.trim()||(thread.image?'What can you tell me about this photo?':thread.file?'Summarize this file.':'');if(!question)return;
+ if(!thread.image&&!thread.file&&!thread.attachment){const origin=thread,local=Studio.command(question);if(local){origin.draft='';saveThread(origin);if(page==='chat'&&origin===thread){renderChat();}if(local.say)notice(local.say);return;}}
+ if(thread.image && ChatImages.needsChoice(thread.imageMode)){ChatImages.choose(send);return;}
+ if(!N.cloud()&&(thread.image?thread.imageMode==='text':(thread.rehearsal||thread.file||thread.attachment||!phoneIntent(question,thread.turns[thread.turns.length-1])))){consentDialog();return;}
  if(question.length>2000){notice('Questions can contain up to 2,000 characters.');return;}
  submitQuestion(question,thread.attachment,null);
 }
 function submitQuestion(question,attachment,voice){
  const t={question,attachment,spoken:!!voice,mode:thread.mode,status:'waiting',sources:[]};
- if(thread.image){t.image=thread.image;t.imageMode=thread.imageMode||'auto';}
+ if(thread.file)t.file=thread.file;
+ if(thread.image){t.image=thread.image;t.imageMode=ChatImages.mode(thread.imageMode);}
  if(attachment&&M.request(t,[]).prompt.length>16000){notice('Shorten your question or attachment to fit the writing request.');return false;}
  if(thread.rehearsal){
-  if(attachment){notice('Start a regular chat to use an attachment.');return false;}
+  if(attachment||t.file){notice('Start a regular chat to use an attachment.');return false;}
   t.practice=Rehearsal.isCoach(question)?'coach':'role';
   if(t.practice==='coach'&&!thread.turns.some(row=>row.practice==='role'&&!row.retired&&row.status==='ok')){notice('Practice an exchange before requesting coaching.');return false;}
  }
@@ -256,6 +261,7 @@ function fork(i,edit=false){
  child.title=(original.title.replace(/^Branch · /,'')).slice(0,56);
  child.title='Branch · '+child.title;
  child.turns=JSON.parse(JSON.stringify(original.turns.slice(0,i+(edit?0:1))));
+ ChatFiles.branch(original,child,t.file);
  if(t.image){child.image=t.image;child.imageMode=t.imageMode||'auto';}
  if(edit){child.draft=t.question;child.attachment=t.attachment||'';child.mode=t.mode;}
  chooseThread(child);saveThread();renderChat(true);if(edit)$('question').focus();else notice('New branch opened. Your original chat is intact.');
@@ -293,7 +299,7 @@ function setDraft(text){if(sheet)closeSheet();thread.draft=text;saveThread();ren
 function newMenu(){
  modal('New conversation',(thread.turns.length?button('bookmark','Leave it here','note'):'')+button('start','Regular chat','chat')+button('temporary','Temporary chat','eye')+Studio.buttons()+'<p class="desc">Temporary chats stay out of History. You can still choose to save an individual answer to Desk.</p>');
 }
-function startThread(temp){if(thread.temporary&&(thread.turns.length||thread.draft||thread.attachment||thread.image)){pendingTemp=temp;confirmAction('Leave temporary chat?','Its conversation and draft will be discarded. Cards you saved are on your Desk.','discard-temp','Leave and start chat');}else chooseThread(M.newThread(temp));}
+function startThread(temp){if(thread.temporary&&(thread.turns.length||thread.draft||thread.attachment||thread.file||thread.image)){pendingTemp=temp;confirmAction('Leave temporary chat?','Its conversation and draft will be discarded. Cards you saved are on your Desk.','discard-temp','Leave and start chat');}else chooseThread(M.newThread(temp));}
 let pendingTemp=false;
 document.addEventListener('click',event=>{
  const el=event.target.closest('[data-action]');if(!el)return;
@@ -326,7 +332,7 @@ document.addEventListener('click',event=>{
  case 'new':newMenu();break;
  case 'start':case 'temporary':startThread(action==='temporary');break;
  case 'discard-temp':chooseThread(M.newThread(pendingTemp));break;
- case 'settings':showSettings();break;
+ case 'settings':showSettings();N.imageStatus();break;
  case 'phone-setup':phoneSetup();break;
  case 'phone-prev':phoneSetup(phoneStep-1);break;
  case 'phone-next':phoneSetup(phoneStep+1);break;
@@ -354,23 +360,28 @@ document.addEventListener('click',event=>{
  case 'web-fallback':N.openSource('https://www.google.com/search?q='+encodeURIComponent(thread.turns[i].question));break;
  case 'source':if(M.safeUrl(el.dataset.url))N.openSource(el.dataset.url);break;
  case 'mode':
-  if(thread.image){ChatImages.preview();N.imageStatus();break;}
+  if(thread.image){ChatImages.preview();break;}
   if(thread.attachment){reviewAttachment();break;}
   modal('Answer mode',button('set-mode','Auto','spark','data-val="auto"')+'<p class="option-help">Let the service choose when to look something up.</p>'+button('set-mode','Web search','globe','data-val="search"')+'<p class="option-help">Request a sourced answer from the web.</p>');break;
  case 'set-mode':thread.mode=v;saveThread();closeSheet();syncComposer();break;
  case 'attach':ChatImages.menu();break;
- case 'pick-image':ChatImages.pick();break;
- case 'preview-image':ChatImages.preview();N.imageStatus();break;
+ case 'camera':case 'pick-image':case 'pick-file':ChatImages.pick(el.dataset.action);break;
+ case 'photo-choice':ChatImages.rememberChoice(v);break;
+ case 'photo-setting':ChatImages.rememberChoice(v);showSettings();break;
+ case 'preview-file':ChatFiles.preview();break;
+ case 'turn-file':ChatFiles.preview(i);break;
+ case 'reuse-file':ChatFiles.reuse(i);break;
+ case 'detach-file':ChatFiles.clear();saveThread();syncComposer();break;
+ case 'preview-image':ChatImages.preview();break;
  case 'turn-image':ChatImages.preview(i);break;
  case 'reuse-image':ChatImages.reuse(i,false);break;
  case 'ask-image-text':ChatImages.reuse(i,true);break;
  case 'setup-vision':N.setupVision();break;
  case 'open-shared-image':chooseThread(M.newThread());N.acceptSharedImage(thread.id,false);break;
- case 'image-mode':ChatImages.switchMode(v);break;
  case 'detach-image':ChatImages.detach();if(sheet)closeSheet();break;
  case 'review':reviewAttachment();break;
  case 'pick':N.pick(thread.id);break;
- case 'apply-attachment':if(thread.image&&$('attachment-editor').value.trim())ChatImages.detach();thread.attachment=$('attachment-editor').value.trim();saveThread();closeSheet();syncComposer();$('question').focus();break;
+ case 'apply-attachment':if($('attachment-editor').value.trim())ChatFiles.clear();if(thread.image&&$('attachment-editor').value.trim())ChatImages.detach();thread.attachment=$('attachment-editor').value.trim();saveThread();closeSheet();syncComposer();$('question').focus();break;
  case 'remove-attachment':thread.attachment='';saveThread();closeSheet();syncComposer();break;
  case 'live-menu':LiveChat.menu();break;
  case 'live-consent':N.consent(true);LiveChat.menu();break;
@@ -403,8 +414,11 @@ document.addEventListener('click',event=>{
  case 'voice':LiveChat.end();N.dictate(thread.id);break;
  case 'retry':
   if(job){notice('Finish or stop the current reply first.');break;}
-  if(!N.cloud()&&(thread.turns[i].image?['cloud','text'].includes(thread.turns[i].imageMode):(thread.turns[i].attachment||!phoneIntent(thread.turns[i].question,thread.turns[i-1])))){consentDialog();break;}
-  if(i<thread.turns.length-1){fork(i,true);send();}else runTurn(thread.turns[i],thread.turns.slice(0,i));
+  if(!N.cloud()&&(thread.turns[i].image?thread.turns[i].imageMode==='text':(thread.turns[i].file||thread.turns[i].attachment||!phoneIntent(thread.turns[i].question,thread.turns[i-1])))){consentDialog();break;}
+  if(i<thread.turns.length-1){fork(i,true);send();}else {
+   const t=thread.turns[i],retry=()=>{if(t.image)t.imageMode=ChatImages.mode(t.imageMode);runTurn(t,thread.turns.slice(0,i));};
+   if(t.image&&ChatImages.needsChoice(t.imageMode))ChatImages.choose(retry);else retry();
+  }
   break;
  case 'editq':fork(i,true);break;
  case 'branch':fork(sheetTurn);break;
@@ -420,7 +434,7 @@ document.addEventListener('click',event=>{
   const index=sheetTurn,original=thread.turns[index];fork(index);
   // An unverified answer is intentionally excluded from model context.
   const prompt=original.unavailable?prompts[v]+'\n\nHere is the unverified reply I want to examine:\n'+original.reply:prompts[v];
-  if(prompt.length>2000){thread.attachment=original.reply.slice(0,14000);setDraft(prompts[v]);}else setDraft(prompt);break;
+  if(prompt.length>2000){ChatFiles.clear();if(thread.image)ChatImages.detach();thread.attachment=original.reply.slice(0,14000);setDraft(prompts[v]);}else setDraft(prompt);break;
  }
  case 'ask-card':{
   flush();const text=M.cardText(card)+M.sourceText(card.sources);
@@ -486,8 +500,16 @@ document.addEventListener('keydown',e=>{
  if(e.target===$('question')&&e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();if(!job)send();}
  if(sheet&&e.key==='Tab'){const focusable=[...$('dialog').querySelectorAll('button,input,textarea')];const first=focusable[0],last=focusable[focusable.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}
 });
+$('question').addEventListener('paste',e=>{
+ const text=e.clipboardData?.getData('text/plain');
+ if(!thread.rehearsal && text && text.length>2000){
+  e.preventDefault();
+  if(text.length>14000)notice('Choose a file for longer text.');else reviewAttachment(text);
+ }
+});
 document.addEventListener('visibilitychange',()=>{if(document.hidden)flush();});
 window.notaEvent=(event,...args)=>{
+ if(event==='chatFile'){ChatFiles.picked(...args);return;}
  if(ChatImages.event(event,args))return;
  if(event==='phoneStatus'){if(sheet==='phone')phoneSetup(phoneStep);return;}
  if(event==='previewStopped'){if(previewToken){previewToken='';const el=$('voice-preview-label');if(el)el.textContent='Preview voice';}return;}

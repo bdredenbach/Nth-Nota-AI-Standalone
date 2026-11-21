@@ -12,7 +12,7 @@ const Rehearsal=(()=>{
   const role=$('practice-role').value.trim(),scene=$('practice-scene').value.trim();
   if(!role||!scene){notice('Add a role and a situation.');return;}
   pending={role,scene,voice};
-  if(thread.temporary&&(thread.turns.length||thread.draft.trim()||thread.attachment||thread.image)){
+  if(thread.temporary&&(thread.turns.length||thread.draft.trim()||thread.attachment||thread.file||thread.image)){
    confirmAction('Leave temporary chat?','Starting this rehearsal discards the open temporary chat. Desk cards you explicitly saved are kept.','practice-confirm','Start rehearsal');return;
   }
   enter();
