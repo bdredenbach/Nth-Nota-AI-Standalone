@@ -185,7 +185,7 @@ const LiveChat = (() => {
     if(localCommand(text,true))return;
     if(job){pauseMic('Another reply is in progress.');return;}
     if(text.length>2000){pauseMic('That turn was too long to send. Try a shorter question.');return;}
-    if(!N.cloud()&&(thread.image?thread.imageMode==='text':(thread.rehearsal||thread.file||!phoneIntent(text,thread.turns[thread.turns.length-1])))){s.unsent=text;pauseMic('Cloud questions are off. Enable them in Settings for general AI questions, or resume to ask about your phone.');return;}
+    if(!N.cloud()&&!localStudy(text,thread)&&(thread.image?thread.imageMode==='text':(thread.rehearsal||thread.file||!phoneIntent(text,thread.turns[thread.turns.length-1])))){s.unsent=text;pauseMic('Cloud questions are off. Enable them in Settings for general AI questions, or resume to ask about your phone.');return;}
     s.token='';
     s.silences=0;
     s.state='thinking';

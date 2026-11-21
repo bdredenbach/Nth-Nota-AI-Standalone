@@ -173,6 +173,8 @@ const Shelf=(()=>{
  }
  function completed(owner,t){
   if(!t.makeFile||owner.temporary||t.status!=='ok'||t.unavailable||t.savedOutput)return;
+  const list=AnswerQuality.checklistSpec(t.question);
+  if(list&&AnswerQuality.listProblem(t.reply,list))return;
   work('artifact',{key:t.makeFile,name:filename(t.question),text:clean(t.reply),origin:owner.id}).then(f=>{
    t.savedOutput=f.id;if(threads.has(owner.id))saveThread(owner);
    if(page==='chat'&&thread===owner)renderChat();else changed();

@@ -2,7 +2,9 @@
 
 A standalone Android assistant with two work surfaces. Chat holds a conversation. Desk holds editable notes, drafts and checklists that can outlive that conversation. A saved card carries its source links and opens the original thread while that thread exists. **Ask about this card** sends edits back through a new, reviewable draft.
 
-Version 0.12.1 is a debug-signed testing build. Application ID `com.nth.notaai`. Minimum Android 8.0, target Android 16 / API 36. It can be installed alongside the Nth Nota notes app and the Nth Desktop launchers.
+Basic study-block plans are calculated on the phone. For other supported minute-based schedules Nota checks the intervals against the requested budget. Generated Markdown checklists are checked for count, duplicates and placeholders before they appear in Files. A failed check can trigger one rewrite.
+
+Version 0.12.2 is a debug-signed testing build. Application ID `com.nth.notaai`. Minimum Android 8.0, target Android 16 / API 36. It can be installed alongside the Nth Nota notes app and the Nth Desktop launchers.
 
 ## Organizing chats and Desk cards
 

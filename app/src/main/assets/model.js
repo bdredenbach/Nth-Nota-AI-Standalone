@@ -1,5 +1,6 @@
 'use strict';
 const NotaModel = (() => {
+ const quality=typeof module!=='undefined'?require('./answer-quality.js'):AnswerQuality;
  const id = prefix => prefix + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 11);
  const newThread = (temporary = false) => ({id:id('thread'),title:'New chat',temporary,updated:Date.now(),draft:'',attachment:'',mode:'auto',turns:[]});
  const esc = value => String(value == null ? '' : value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -35,7 +36,7 @@ const NotaModel = (() => {
    const mealIdea=/^(?:i have|we have|using)\b.{1,180}?[.!?,]\s*(?:please )?(?:suggest|plan|make|give me)\b.{0,45}\b(?:dinner|lunch|breakfast|meal|recipe)\b/i.test(q);
    const unitConversion=quantities&&/^convert\b/i.test(q)&&/\b(?:fahrenheit|celsius|kilometers?|miles?|centimeters?|inches|kilograms?|pounds?)\b/i.test(q)&&
      /\b(?:to|into) (?:degrees )?(?:fahrenheit|celsius|kilometers?|miles?|centimeters?|inches|kilograms?|pounds?)[?.! ]*$/i.test(q);
-   const timeBudget=/^(?:break|split|divide|organize|plan)\b.{0,45}\b\d+[- ]minute\b.{0,100}\b(?:blocks?|sessions?|breaks?)\b/i.test(q);
+   const timeBudget=quality.timeBudget(q);
    if(recipeScale||mealIdea||unitConversion||timeBudget)return true;
    return /^(?:draft|rewrite|rephrase|translate)\b/i.test(q)||
      /^use (?:that|this|the|my|our) (?:name|detail|phrase|idea) in (?:.{0,35} )?(?:invitation|message|story|sentence|poem)\b/i.test(q)||
