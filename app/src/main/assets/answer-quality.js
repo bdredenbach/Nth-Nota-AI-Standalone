@@ -37,8 +37,13 @@ const AnswerQuality = (() => {
  function timeBudget(q) {
   if(!/\b(?:plan|schedule|break|split|divide|organize|allocate|budget)\b/i.test(q) ||
      !/\b(?:blocks?|sessions?|breaks?|agenda|schedule|workshop|meeting|workout|study plan)\b/i.test(q))return null;
-  const m=q.match(/\b(\d+)[ -](?:minutes?|mins?)\b(?![ -]+(?:breaks?|blocks?|intervals?)\b)/i);
-  if(!m||+m[1]<1||+m[1]>1440)return null;
+  // A separate allowance or two independently timed sessions have no single
+  // inclusive budget. Leave the original request intact for the writing service.
+  if(/\b(?:plus|followed by|in addition to|excluding)\b[^.!?]{0,35}\bbreaks?\b/i.test(q))return null;
+  const candidates=[...q.matchAll(/\b(\d+)[ -](?:minutes?|mins?)\b(?![ -]+(?:breaks?|blocks?|intervals?)\b)/gi)];
+  if(candidates.length!==1)return null;
+  const m=candidates[0];
+  if(+m[1]<1||+m[1]>1440)return null;
   const blocks=q.match(new RegExp('\\b(?:into|across) ('+number+') (?:study |work |focus )?blocks?\\b','i'));
   const rest=q.match(new RegExp('\\b('+number+')[ -]minute breaks?\\b','i'));
   const restCount=q.match(new RegExp('\\b(?:include|including|with|plus) ('+number+') (?:'+number+'[ -]minute )?breaks?\\b','i'));
@@ -46,6 +51,46 @@ const AnswerQuality = (() => {
   return {total:+m[1],blocks:blocks&&!/\b(?:as one of|counts? as|blocks? (?:total|in all))\b/i.test(q)?value(blocks[1]):0,
    breaks:noBreaks?'none':/\b(include|including|with|plus)\b[^.!?]{0,30}\bbreaks?\b/i.test(q)?'required':'optional',
    breakCount:restCount?value(restCount[1]):null,breakMinutes:rest?value(rest[1]):null};
+ }
+ function fixedSlots(budget){
+  if(!budget.blocks||budget.blocks>50)return null;
+  const count=budget.breakCount??(budget.breaks==='required'?budget.blocks-1:0);
+  if(count!==0&&count!==budget.blocks-1)return null;
+  const rest=budget.breakMinutes??Math.min(5,Math.max(1,Math.floor(budget.total/(3*budget.blocks))));
+  const work=budget.total-count*rest;
+  if(work<budget.blocks||count&&rest<=0)return null;
+  return Array.from({length:budget.blocks},(_,i)=>({
+   work:Math.floor(work/budget.blocks)+(i<work%budget.blocks?1:0),
+   rest:i<count?rest:0
+  }));
+ }
+ function activityInstructions(budget){
+  return fixedSlots(budget)?'Return exactly '+budget.blocks+' short Markdown bullets. Each bullet names a distinct hands-on activity specific to the requested subject. The app adds the times and breaks. Omit times, breaks, headings and extra commentary.':intervalFormat;
+ }
+ function activityReply(text,budget){
+  const slots=fixedSlots(budget);
+  if(!slots)return '';
+  const lines=text.split(/\r?\n/).map(s=>s.trim());
+  const activities=lines.filter(line=>/^(?:[-*+•]|\d+[.)])\s+/.test(line))
+   .map(line=>line.replace(/^(?:[-*+•]|\d+[.)])\s+/,'').replace(/\*\*|__/g,'').trim());
+  if(activities.length!==slots.length||activities.some(s=>!s||/\b(?:break|rest period|\d+\s*[- ]?\s*(?:min(?:ute)?s?|hours?))\b/i.test(s)))return '';
+  if(listProblem(activities.map(s=>'- '+s).join('\n'),{count:slots.length}))return '';
+  const steps=[];
+  slots.forEach(({work,rest},i)=>{
+   steps.push('- '+work+' min — '+activities[i]);
+   if(rest)steps.push('- '+rest+' min — Break: stand up or stretch.');
+  });
+  return steps.join('\n')+'\n\nTotal: '+budget.total+' minutes.';
+ }
+ // A simple workshop can still be completed if the writer repeatedly returns
+ // formatting instead of activities. Custom agendas stay on the validated path.
+ function workshopOutline(q,budget){
+  const m=q.trim().match(new RegExp('^(?:please )?plan (?:a |my )?\\d+[ -]minute ([a-z]+(?:[ -][a-z]+){0,3}) workshop into (?:two|three|2|3) blocks with (?:'+number+' )?(?:'+number+'[ -]minute )?breaks?[.!?]*$','i'));
+  if(!m||![2,3].includes(budget.blocks))return '';
+  const activities=['Demonstrate one '+m[1]+' technique and identify what to look for.'];
+  if(budget.blocks===3)activities.push('Have each participant practice the technique on a new example.');
+  activities.push('Compare the results in pairs and use the feedback to revise one example.');
+  return activityReply(activities.map(s=>'- '+s).join('\n'),budget);
  }
  function intervalReply(text,budget) {
   const rows=[];
@@ -65,7 +110,8 @@ const AnswerQuality = (() => {
  const countPattern = new RegExp('\\b('+number+')[ -](?:(?:actionable|practical|concrete|essential|specific|packing|key|simple) )*(?:items?|steps?|tasks?|tips?|bullets?|things?|points?)(?:\\b|-)','i');
  function checklistSpec(q) {
   if(/\b(?:as (?:a )?(?:table|paragraph|json|csv)|in (?:table|paragraph|json|csv) (?:form|format))\b/i.test(q))return null;
-  if(/\b(?:template|placeholders?|fill.in.the.blank|blank (?:list|checklist)|empty (?:list|checklist))\b/i.test(q))return null;
+  const intent=q.replace(/\b(?:no|without|avoid|omit|skip|never use|do not use|don’t use|don't use)\s+(?:any\s+)?placeholders?\b/gi,'');
+  if(/\b(?:template|placeholders?|fill.in.the.blank|blank (?:list|checklist)|empty (?:list|checklist))\b/i.test(intent))return null;
   const count=q.match(countPattern);
   if(!count&&!/\b(?:checklist|to-do list|packing list|grocery list|shopping list)\b/i.test(q))return null;
   return {count:count?value(count[1]):null};
@@ -80,8 +126,9 @@ const AnswerQuality = (() => {
   if(rows.some(s=>/^(?:\[.*?\]|(?:todo|tbd|placeholder|lorem ipsum)(?:\s*[:.\-]?\s*\d+)?|(?:item|task|step|thing|entry|point)\s*(?:#?\d+|one|two|three)?)[.!…]*$/.test(s)))return 'Replace every placeholder with a specific, useful entry.';
   const keys=rows.map(s=>s.replace(/[.!?]+$/,'').replace(/\s+/g,' '));
   if(new Set(keys).size!==keys.length)return 'Give each entry a distinct purpose.';
-  const labels=keys.map(s=>s.match(/^(.+?)\s+#?(\d+)$/));
-  if(labels.length>1&&labels.every(m=>m&&m[1]===labels[0][1])&&labels.every((m,i)=>+m[2]===i+1))return 'Replace numbered copies of the topic with distinct, practical actions or items.';
+  const numberedLabel=new RegExp('^(.+?)\\s+#?('+number+')$','i');
+  const labels=keys.map(s=>s.match(numberedLabel));
+  if(labels.length>1&&labels.every(m=>m&&m[1]===labels[0][1])&&labels.every((m,i)=>value(m[2])===i+1))return 'Replace numbered copies of the topic with distinct, practical actions or items.';
   return '';
  }
  const intervalFormat='Return only one line per interval, in the exact form WORK | whole minutes | activity or BREAK | whole minutes | activity. Every interval including breaks counts toward the requested total. Keep the requested block count and break lengths.';
@@ -91,6 +138,6 @@ const AnswerQuality = (() => {
   // Keep the original file, user request and memory intact at the transport limit.
   return prefix.length+payload.prompt.length<=16000?{...payload,prompt:prefix+payload.prompt}:payload;
  }
- return {studyPlan,timeBudget,intervalReply,checklistSpec,listProblem,intervalFormat,instructions};
+ return {studyPlan,timeBudget,intervalReply,activityInstructions,activityReply,workshopOutline,checklistSpec,listProblem,intervalFormat,instructions};
 })();
 if(typeof module!=='undefined')module.exports=AnswerQuality;

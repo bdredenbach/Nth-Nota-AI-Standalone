@@ -241,7 +241,7 @@ function runTurn(t,prior,voice=null){
  const drafting=!t.practice&&!t.image&&!intent&&payload.route==='write'&&!thread.documents?.[t.file]?.editTarget;
  const budget=drafting&&!local&&!t.file&&!t.attachment?AnswerQuality.timeBudget(t.question):null;
  const list=drafting&&(t.makeFile||!t.file&&!t.attachment&&/^(?:(?:please|can you|could you) )*(?:make|create|draft|write|give me|prepare) /i.test(t.question))?AnswerQuality.checklistSpec(t.question):null;
- if(budget)payload=AnswerQuality.instructions(payload,AnswerQuality.intervalFormat);
+ if(budget)payload=AnswerQuality.instructions(payload,AnswerQuality.activityInstructions(budget));
  else if(list)payload=AnswerQuality.instructions(payload,'Write distinct, useful Markdown bullets. Make each entry specific enough to use. For a travel checklist give practical preparations. Use only booking details supplied by the user.');
  ChatMemory.prepare(payload,t,prior,intent||local);
  if(payload.route==='write'&&payload.prompt.length>16000){notice('Shorten your question or attachment to fit the writing request.');return false;}
@@ -598,8 +598,8 @@ window.notaEvent=(event,...args)=>{
    if(!data.unavailable&&(active.budget||active.list)){
     let problem='';
     if(active.budget){
-     checked=AnswerQuality.intervalReply(data.text,active.budget);
-     if(!checked)problem=AnswerQuality.intervalFormat;
+     checked=AnswerQuality.activityReply(data.text,active.budget)||AnswerQuality.intervalReply(data.text,active.budget);
+     if(!checked)problem=AnswerQuality.activityInstructions(active.budget);
     }else problem=AnswerQuality.listProblem(checked,active.list);
     if(problem){
      if(!active.retried&&N.cloud()){
@@ -608,7 +608,10 @@ window.notaEvent=(event,...args)=>{
       N.ask(job.id,JSON.stringify(repair));
       return;
      }
-     t.error=active.budget?'The intervals didn’t fit the requested plan. Try again.':'The checklist still needs distinct, useful items. Try again.';
+     const outline=active.budget&&AnswerQuality.workshopOutline(t.question,active.budget);
+     if(outline){
+      t.localPlan=true;checked=outline;data.provider='';data.sources=[];
+     }else t.error=active.budget?'The intervals didn’t fit the requested plan. Try again.':'The checklist still needs distinct, useful items. Try again.';
     }
    }
    if(t.error)t.status='error';

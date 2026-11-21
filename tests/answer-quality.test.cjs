@@ -28,17 +28,25 @@ test('fixed breaks, no breaks, impossible budgets and subject-specific requests'
  assert.equal(quality.studyPlan('Plan a 45-minute biology workshop with a quiz.'),'');
 });
 test('a tailored interval plan rejects wrong arithmetic, break lengths, break counts and false totals',()=>{
- const q='Plan a 50-minute workshop into three blocks with two 5-minute breaks.';
+ const q='Plan a 50-minute drawing workshop into three blocks with two 5-minute breaks.';
  const budget=quality.timeBudget(q);
  const raw='WORK | 12 | Introductions\nBREAK | 5 | Stretch\nWORK | 15 | Practice\nBREAK | 5 | Walk\nWORK | 13 | Review';
+ const topics='- Practice contour drawing from a houseplant.\n- Sketch the shadows using crosshatching.\n- Compare line weights and redraw one detail.';
+ assert.deepEqual(durations(quality.workshopOutline(q,budget)),[14,5,13,5,13]);
+ assert.equal(quality.workshopOutline(q+' Include a guest critique.',budget),'');
+ assert.match(quality.activityInstructions(budget),/three|3/);
+ assert.deepEqual(durations(quality.activityReply(topics,budget)),[14,5,13,5,13]);
+ assert.equal(quality.activityReply(topics.replace('Sketch the shadows','Spend 15 minutes on shadows'),budget),'');
  assert.equal(model.request({mode:'auto',question:q},[]).route,'write');
  assert.deepEqual(durations(quality.intervalReply(raw,budget)),[12,5,15,5,13]);
  for(const broken of [raw.replace('12','17'),raw.replace('12','13').replace('5 | Stretch','4 | Stretch'),raw.replace('BREAK','WORK'),raw+'\nTotal: 50 minutes'])assert.equal(quality.intervalReply(broken,budget),'');
+ assert.equal(quality.timeBudget('Plan a 10-minute talk and a 20-minute workshop.'),null);
+ assert.equal(quality.timeBudget('Plan a 45-minute workshop plus a 10-minute break.'),null);
  assert.equal(quality.timeBudget('What is the difference between breaks and study sessions?'),null);
 });
 test('checklists detect the reported failure, duplicates, placeholders, and wrong item counts',()=>{
- const spec=quality.checklistSpec(question);
- for(const draft of [bad,'1. TODO\n2. [step]\n3. Placeholder','- A\n- A\n- C','- Pack your bag'])assert.ok(quality.listProblem(draft,spec));
+ const spec=quality.checklistSpec(question+' Do not use placeholders.');
+ for(const draft of [bad,'- Train trip one\n- Train trip two\n- Train trip three','1. TODO\n2. [step]\n3. Placeholder','- A\n- A\n- C','- Pack your bag'])assert.ok(quality.listProblem(draft,spec));
  assert.equal(quality.listProblem(good,spec),'');
  assert.equal(quality.listProblem('# Supplies\n\n- [ ] Pens\n  - Blue or black\n- [ ] Paper\n- [ ] Folders',spec),'');
  assert.equal(quality.checklistSpec('Create a blank checklist template with three items.'),null);
