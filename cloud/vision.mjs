@@ -67,9 +67,10 @@ async function readBody(request) {
 
 export default {
   async fetch(request, env) {
-    if (new URL(request.url).pathname === '/v1/vision' && request.method === 'GET') return reply({vision: env.FREE_ONLY_CONFIRMED === 'yes' && !!env.AI && !!env.DB && !!env.LIMITER});
+    const limiter = env.NOTA_TESTING_MODE === 'yes' ? env.TEST_LIMITER : env.LIMITER;
+    if (new URL(request.url).pathname === '/v1/vision' && request.method === 'GET') return reply({vision: env.FREE_ONLY_CONFIRMED === 'yes' && !!env.AI && !!env.DB && !!limiter});
     if (new URL(request.url).pathname !== '/v1/vision' || request.method !== 'POST') return fail('Unknown endpoint.',404);
-    if (env.FREE_ONLY_CONFIRMED !== 'yes' || !env.DB || !env.AI || !env.LIMITER) return fail('Image analysis is unavailable.',503);
+    if (env.FREE_ONLY_CONFIRMED !== 'yes' || !env.DB || !env.AI || !limiter) return fail('Image analysis is unavailable.',503);
     if (!request.headers.get('content-type')?.startsWith('application/json')) return fail('Use JSON.',415);
     let input;
     try { input = await readBody(request); } catch { return fail('Invalid request.',400); }
@@ -81,7 +82,7 @@ export default {
         !allowedJpeg(image)) return fail('Choose a supported image and question.',400);
     try {
       const key = request.headers.get('CF-Connecting-IP') || 'unknown';
-      if (!(await env.LIMITER.limit({key})).success) return fail('Too many image requests.',429);
+      if (!(await limiter.limit({key})).success) return fail('Too many image requests.',429);
       const day = new Date().toISOString().slice(0,10);
       const reserved = await env.DB.prepare('INSERT INTO quota (day,bucket,used) VALUES (?,?,?) ON CONFLICT(day,bucket) DO UPDATE SET used=used+excluded.used WHERE used+excluded.used <= ? RETURNING used')
         .bind(day,NEURON_BUCKET,IMAGE_RESERVATION,10000).first();

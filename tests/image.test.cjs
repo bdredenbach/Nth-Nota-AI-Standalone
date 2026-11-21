@@ -60,3 +60,20 @@ test('image completions share the daily neuron budget with text and retain unmet
   assert.ok(Number(limited.headers.get('Retry-After'))>0);
   assert.equal((await limited.json()).retryAt,Date.parse(day+'T00:00:00Z')+86400000);
 });
+
+test('testing uses the image testing limiter and a missing binding fails before inference',async()=>{
+ const h=(await import('../cloud/vision.mjs')).default;
+ const url='https://example.test/v1/vision';
+ const jpeg=Buffer.from([255,216,255,192,0,11,8,0,1,0,1,1,1,17,0,255,217]).toString('base64');
+ const calls=[];
+ const limiter=name=>({limit:async()=>{calls.push(name);return {success:false}}});
+ const env={FREE_ONLY_CONFIRMED:'yes',DB:{},AI:{},LIMITER:limiter('public'),TEST_LIMITER:limiter('testing')};
+ const send=()=>h.fetch(new Request(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({consentAccepted:true,question:'What color?',image:jpeg})}),env);
+ for(const mode of ['yes','no',undefined]){
+  env.NOTA_TESTING_MODE=mode;assert.equal((await send()).status,429);
+ }
+ assert.deepEqual(calls,['testing','public','public']);
+ env.NOTA_TESTING_MODE='yes';delete env.TEST_LIMITER;
+ assert.equal((await send()).status,503);
+ assert.equal((await (await h.fetch(new Request(url),env)).json()).vision,false);
+});
