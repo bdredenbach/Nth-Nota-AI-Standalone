@@ -13,6 +13,13 @@ if [ "$EDITION" = 3d ]; then
 fi
 adb shell input keyevent KEYCODE_WAKEUP
 adb shell wm dismiss-keyguard
+if [ "$EDITION" = eleven ]; then
+  launcher=com.nthexperience.desktop.eleven
+  adb shell am force-stop "$launcher"
+  adb shell "run-as $launcher sh -c 'mkdir -p shared_prefs; cat > shared_prefs/desktop_initialization_v1.xml'" <<'PREFS'
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><map><int name="flow_version" value="2"/><int name="step" value="7"/></map>
+PREFS
+fi
 mkdir -p ../regression-evidence
 evidence=../regression-evidence/device.txt
 adb shell getprop ro.build.version.sdk | tr -d '\r' | tee "$evidence"
