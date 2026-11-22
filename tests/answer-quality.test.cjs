@@ -37,7 +37,14 @@ test('a tailored interval plan rejects wrong arithmetic, break lengths, break co
  assert.match(quality.activityInstructions(budget),/three|3/);
  assert.deepEqual(durations(quality.activityReply(topics,budget)),[14,5,13,5,13]);
  assert.equal(quality.activityReply(topics.replace('Sketch the shadows','Spend 15 minutes on shadows'),budget),'');
- assert.equal(model.request({mode:'auto',question:q},[]).route,'write');
+ const chat=model.request({mode:'auto',question:q},[]);
+ assert.equal(chat.route,'chat');
+ const formatted=quality.instructions(chat,quality.activityInstructions(budget));
+ assert.match(formatted.question,/three blocks with two 5-minute breaks/);
+ assert.match(formatted.question,/exactly 3 short Markdown bullets/);
+ assert.deepEqual(formatted.messages,[]);
+ const atLimit={...chat,question:'x'.repeat(2000)};
+ assert.equal(quality.instructions(atLimit,'extra instructions'),atLimit);
  assert.deepEqual(durations(quality.intervalReply(raw,budget)),[12,5,15,5,13]);
  for(const broken of [raw.replace('12','17'),raw.replace('12','13').replace('5 | Stretch','4 | Stretch'),raw.replace('BREAK','WORK'),raw+'\nTotal: 50 minutes'])assert.equal(quality.intervalReply(broken,budget),'');
  assert.equal(quality.timeBudget('Plan a 10-minute talk and a 20-minute workshop.'),null);

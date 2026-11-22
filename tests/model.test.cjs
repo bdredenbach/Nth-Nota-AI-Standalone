@@ -70,5 +70,25 @@ test('downloadable lists keep invented details out of the instructions and time 
  const file=model.request({question:'Create a Markdown file with three travel items.',makeFile:'x'},[]);
  assert.match(file.prompt,/exactly N top-level items/);assert.match(file.prompt,/Leave unspecified bookings/);
  const timed=model.request({mode:'auto',question:'Break a 45-minute study session into three blocks, including breaks.'},[]);
- assert.equal(timed.route,'write');assert.match(timed.prompt,/sum equals/);
+ assert.equal(timed.route,'chat');assert.match(timed.question,/including breaks/);
+});
+
+test('equivalent planning prompts and a new total use conversation routing with the displayed history',()=>{
+ const prior=[];
+ for(const question of [
+  'Split 40 minutes between measuring and packing.',
+  'I have 40 minutes. Divide that time between measuring and packing. Give just the two blocks.'
+ ]){
+  assert.deepEqual(model.request({mode:'auto',question},prior),{route:'chat',mode:'auto',question,messages:[]});
+ }
+ const plan={question:'Split 40 minutes between measuring and packing.',reply:'Measuring — 16 min\nPacking — 24 min',status:'ok'};
+ const next=model.request({mode:'auto',question:'Make that 25 minutes.'},[plan]);
+ assert.equal(next.route,'chat');
+ assert.deepEqual(next.messages,[{role:'user',content:plan.question},{role:'assistant',content:plan.reply}]);
+ for(const question of ['Write a thank-you note.','Polish this sentence.','Please proofread my notes.']){
+  assert.equal(model.request({mode:'auto',question},[plan]).route,'write');
+ }
+ assert.equal(model.request({mode:'auto',question:'Polish is my first language.'},[]).route,'chat');
+ const file=model.request({mode:'auto',question:'Change the time to 25 minutes.',file:'plan'},[plan],{body:'original plan',editTarget:{sourceKey:'plan'}});
+ assert.equal(file.route,'write');assert.match(file.prompt,/original plan/);
 });
