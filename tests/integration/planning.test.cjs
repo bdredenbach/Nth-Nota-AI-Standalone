@@ -27,7 +27,10 @@ const workshop = 'Plan a 50-minute drawing workshop into three blocks with two 5
 
 function quotaStore() {
   const sql = new DatabaseSync(':memory:');
-  sql.exec(fs.readFileSync(path.join(backend, 'migrations/0001_quota.sql'), 'utf8'));
+  const migrations = path.join(backend, 'migrations');
+  for (const file of fs.readdirSync(migrations).filter(name => name.endsWith('.sql')).sort()) {
+    sql.exec(fs.readFileSync(path.join(migrations, file), 'utf8'));
+  }
   return {
     close: () => sql.close(),
     prepare(query) {

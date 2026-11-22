@@ -79,9 +79,8 @@ final class Gateway {
             }
             int status = http.getResponseCode();
             if (status < 200 || status >= 300) {
-                if (status == 429) throw new IOException(quotaMessage(http, System.currentTimeMillis()));
-                if (status == 503 || status == 502 || status == 504) {
-                    throw new IOException("The free AI service is temporarily unavailable. Your question is still here. Tap Retry to try again.");
+                if (status == 429 || status == 503 || status == 502 || status == 504) {
+                    throw new IOException(retryMessage(http, status, System.currentTimeMillis()));
                 }
                 if (status == 400 || status == 413) throw new IOException("The service could not accept this request. Shorten it and try again.");
                 throw new IOException("The service returned HTTP " + status + ". You can retry this question.");
@@ -97,8 +96,9 @@ final class Gateway {
         }
     }
 
-    static String quotaMessage(HttpsURLConnection http, long now) {
-        String prefix = "The free service has reached a usage limit.";
+    static String retryMessage(HttpsURLConnection http, int status, long now) {
+        String prefix = status == 429 ? "The free service has reached a usage limit."
+                : "The free AI service is temporarily unavailable. Your question is still here.";
         long retryAt = 0;
         try (InputStream in = http.getErrorStream()) {
             if (in != null) retryAt = new JSONObject(readUtf8(in, 8192)).optLong("retryAt", 0);
@@ -116,7 +116,7 @@ final class Gateway {
                 }
             }
         }
-        if (retryAt <= 0) return prefix + " Try again later.";
+        if (retryAt <= 0) return prefix + (status == 429 ? " Try again later." : " Tap Retry to try again.");
         if (retryAt <= now) return prefix + " You can retry now.";
         DateTimeFormatter localTime = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM)
                 .withLocale(Locale.getDefault()).withZone(ZoneId.systemDefault());
