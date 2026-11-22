@@ -147,7 +147,7 @@ function renderChat(scroll=false){
  let answer;
  if(t.status==='waiting') answer='<div class="working" role="status"><i></i>'+(t.image?'Examining your image…':t.file?'Reading your file…':t.attachment?'Reading your passage…':t.mode==='search'?'Looking for sources…':'Working on your reply…')+'</div>';
  else if(t.status==='error')answer='<div class="problem"><p>'+M.esc(t.error)+'</p>'+button('retry','Retry','arrow',attr,'text-btn')+button('editq','Edit question','pen',attr,'text-btn')+'</div>';
- else answer='<div class="answer-text">'+M.markdown(t.reply)+'</div>'+(t.canAskText?button('ask-image-text','Ask online about this text','pen',attr,'action-chip'):'')+(t.quote?button('practice-line','“'+t.quote+'”','chat','data-i="'+t.line+'"','choice framed'):'')+(t.phone?phoneActions(t,i):'')+sourceRows(t.sources)+ChatMemory.citations(t)+(t.unavailable?button('web-fallback','Search in browser','sendout',attr,'text-btn'):'')+'<div class="reply-meta">'+M.esc([t.imageMethod|| (t.phone?(t.weatherData?'Weather · MET Norway':'On this phone'):t.unavailable?'Couldn’t verify':(t.localPlan?'Calculated on this phone':t.searched?'Web search':t.attachment?'Writing':'AI reply')),t.provider].filter(Boolean).join(' · '))+'</div><div class="reply-actions">'+Shelf.replyAction(t,i)+button('to-desk','To Desk','desk',attr,'action-chip')+button('second-look','Second look','compass',attr,'text-btn second-look')+'<button data-action="copy-reply" '+attr+' class="bare" aria-label="Copy reply">'+icon('copy')+'</button><button data-action="more" '+attr+' class="bare" aria-label="More reply actions">'+icon('more')+'</button></div>';
+ else answer='<div class="answer-text">'+M.markdown(t.reply)+'</div>'+(t.canAskText?button('ask-image-text','Ask online about this text','pen',attr,'action-chip'):'')+(t.quote?button('practice-line','“'+t.quote+'”','chat','data-i="'+t.line+'"','choice framed'):'')+(t.phone?phoneActions(t,i):'')+sourceRows(t.sources)+ChatMemory.citations(t)+(t.unavailable?button('web-fallback','Search in browser','sendout',attr,'text-btn'):'')+'<div class="reply-meta">'+M.esc([t.imageMethod|| (t.phone?(t.weatherData?'Weather · MET Norway':'On this phone'):t.unavailable?'Couldn’t verify':(t.recalledSources?'Previous reply’s citations':t.localPlan?'Calculated on this phone':t.searched?'Web search':t.attachment?'Writing':'AI reply')),t.provider].filter(Boolean).join(' · '))+'</div><div class="reply-actions">'+Shelf.replyAction(t,i)+button('to-desk','To Desk','desk',attr,'action-chip')+button('second-look','Second look','compass',attr,'text-btn second-look')+'<button data-action="copy-reply" '+attr+' class="bare" aria-label="Copy reply">'+icon('copy')+'</button><button data-action="more" '+attr+' class="bare" aria-label="More reply actions">'+icon('more')+'</button></div>';
  return '<article class="turn" id="turn-'+i+'"><div class="question">'+(t.image?ChatImages.turnPhoto(t,i):'')+(t.file?button('turn-file',thread.documents?.[t.file]?.name||'File','clip',attr,'turn-file'):'')+(t.attachment?'<small>'+icon('clip')+' Attached passage</small>':'')+M.esc(t.question)+'</div><div class="byline"><span class="mini-mark">N</span> '+M.esc(t.practice==='role'?thread.rehearsal.role:t.practice==='coach'?'Nota · Coach':'Nth Nota AI')+'</div>'+answer+'</article>';
  }).join('')+'</div>';
  }
@@ -246,10 +246,15 @@ function localStudy(question,context){
  if(context.mode!=='auto'||context.rehearsal||context.image||context.file||context.attachment)return '';
  return AnswerQuality.studyPlan(question);
 }
+function localCitation(question,context,turns) {
+ if(context.rehearsal||context.practice||context.image||context.file||context.attachment)return null;
+ return M.citedPages(question,context.mode,turns.findLast(t=>!t.retired));
+}
 function runTurn(t,prior,voice=null){
  if(!voice && LiveChat.active())LiveChat.end();
  const intent=t.image||t.file||t.attachment||t.practice?null:phoneIntent(t.question,prior[prior.length-1]);
  if(t.file&&!thread.documents?.[t.file]){notice('Choose this file again to ask about it.');return false;}
+ const citation=localCitation(t.question,t,prior);
  const local=!t.practice&&localStudy(t.question,t);
  let payload=t.practice?Rehearsal.prompt(thread.rehearsal,t,prior):M.request(t,prior,thread.documents?.[t.file]);
  const drafting=!t.practice&&!t.image&&!intent&&payload.route==='write'&&!thread.documents?.[t.file]?.editTarget;
@@ -258,11 +263,12 @@ function runTurn(t,prior,voice=null){
  const list=drafting&&(t.makeFile||!t.file&&!t.attachment&&/^(?:(?:please|can you|could you) )*(?:make|create|draft|write|give me|prepare) /i.test(t.question))?AnswerQuality.checklistSpec(t.question):null;
  if(budget)payload=AnswerQuality.instructions(payload,AnswerQuality.activityInstructions(budget));
  else if(list)payload=AnswerQuality.instructions(payload,'Write distinct, useful Markdown bullets. Make each entry specific enough to use. For a travel checklist give practical preparations. Use only booking details supplied by the user.');
- ChatMemory.prepare(payload,t,prior,intent||local);
+ ChatMemory.prepare(payload,t,prior,intent||local||citation);
  if(payload.route==='write'&&payload.prompt.length>16000){notice('Shorten your question or attachment to fit the writing request.');return false;}
  t.status='waiting';delete t.error;job={id:M.id('ask'),turn:t,thread,voice,payload,budget,list};
  thread.updated=Date.now();saveThread();renderChat(true);
- if(local){t.localPlan=true;window.notaEvent('answer',job.id,JSON.stringify({text:local}));}
+ if(citation){t.recalledSources=true;window.notaEvent('answer',job.id,JSON.stringify(citation));}
+ else if(local){t.localPlan=true;window.notaEvent('answer',job.id,JSON.stringify({text:local}));}
  else if(t.image)N.askImage(job.id,JSON.stringify({id:t.image.id,mode:t.imageMode||'auto',question:t.question,session:voice?.id||'',token:voice?.token||'',history:ChatImages.history(t.image,prior)}));
  else if(intent){
   t.phone=true;
@@ -289,7 +295,7 @@ function send(skipFileLookup=false){
  try{if(!skipFileLookup && Shelf.intercept(question))return;}catch(e){Shelf.fail(e);return;}
  if(!thread.image&&!thread.file&&!thread.attachment){const origin=thread,local=Studio.command(question);if(local){origin.draft='';saveThread(origin);if(page==='chat'&&origin===thread){renderChat();}if(local.say)notice(local.say);return;}}
  if(thread.image && ChatImages.needsChoice(thread.imageMode)){ChatImages.choose(send);return;}
- if(!N.cloud()&&!localStudy(question,thread)&&(thread.image?thread.imageMode==='text':(thread.rehearsal||thread.file||thread.attachment||!phoneIntent(question,thread.turns[thread.turns.length-1])))){consentDialog();return;}
+ if(!N.cloud()&&!localStudy(question,thread)&&!localCitation(question,thread,thread.turns)&&(thread.image?thread.imageMode==='text':(thread.rehearsal||thread.file||thread.attachment||!phoneIntent(question,thread.turns[thread.turns.length-1])))){consentDialog();return;}
  if(question.length>2000){notice('Questions can contain up to 2,000 characters.');return;}
  submitQuestion(question,thread.attachment,null);
 }
@@ -475,7 +481,7 @@ document.addEventListener('click',event=>{
  case 'voice':LiveChat.end();N.dictate(thread.id);break;
  case 'retry':
   if(job){notice('Finish or stop the current reply first.');break;}
-  if(!N.cloud()&&(thread.turns[i].image?thread.turns[i].imageMode==='text':(thread.turns[i].file||thread.turns[i].attachment||!phoneIntent(thread.turns[i].question,thread.turns[i-1])))){consentDialog();break;}
+  if(!N.cloud()&&!localCitation(thread.turns[i].question,thread.turns[i],thread.turns.slice(0,i))&&(thread.turns[i].image?thread.turns[i].imageMode==='text':(thread.turns[i].file||thread.turns[i].attachment||!phoneIntent(thread.turns[i].question,thread.turns[i-1])))){consentDialog();break;}
   if(i<thread.turns.length-1){fork(i,true);send();}else {
    const t=thread.turns[i],retry=()=>{if(t.image)t.imageMode=ChatImages.mode(t.imageMode);runTurn(t,thread.turns.slice(0,i));};
    if(t.image&&ChatImages.needsChoice(t.imageMode))ChatImages.choose(retry);else retry();
