@@ -92,3 +92,24 @@ test('equivalent planning prompts and a new total use conversation routing with 
  const file=model.request({mode:'auto',question:'Change the time to 25 minutes.',file:'plan'},[plan],{body:'original plan',editTarget:{sourceKey:'plan'}});
  assert.equal(file.route,'write');assert.match(file.prompt,/original plan/);
 });
+
+test('source follow-ups reopen the original citations and preserve explicit web requests', () => {
+  const nasa={title:'Lunar Samples',url:'https://science.nasa.gov/lunar-samples/'};
+  const esa={title:'Moon science',url:'https://www.esa.int/moon'};
+  const previous={status:'ok',sources:[nasa,esa,nasa,{title:'Old link',url:'http://example.com'}]};
+  const q='Which NASA source supports the weight in your previous answer? Name the page.';
+  const answer=model.citedPages(q,'auto',previous);
+  assert.deepEqual(answer.sources,[nasa]);
+  assert.match(answer.text,/Lunar Samples/);
+  assert.match(answer.text,/check the cited material/);
+  assert.deepEqual(model.context([{status:'ok',recalledSources:true,question:q,reply:answer.text}]),[]);
+  assert.deepEqual(model.citedPages('Show me the links from your last reply.','auto',previous).sources,[nasa,esa]);
+  assert.deepEqual(model.citedPages('Which sources did you cite?','auto',{status:'ok',sources:[]}).sources,[]);
+  assert.match(model.citedPages(q.replace('NASA','JAXA'),'auto',previous).text,/do not identify a page from JAXA/);
+  for(const prompt of ['Find a new NASA source.','Check whether the source actually supports that weight.','Which sources did you cite? Verify their claims.']){
+    assert.equal(model.citedPages(prompt,'auto',previous),null);
+  }
+  assert.equal(model.citedPages(q,'search',previous),null);
+  assert.equal(model.citedPages(q,'auto',{status:'error',sources:[nasa]}),null);
+  assert.equal(model.citedPages(q,'auto',null),null);
+});

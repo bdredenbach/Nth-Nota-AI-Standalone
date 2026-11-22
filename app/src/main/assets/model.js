@@ -12,11 +12,31 @@ const NotaModel = (() => {
    return (Array.isArray(list) ? list : []).filter(s => s && safeUrl(s.url) && !seen.has(s.url) && seen.add(s.url)).slice(0,20)
     .map(s => ({title:String(s.title || new URL(s.url).hostname),url:safeUrl(s.url)}));
  }
+ // Reopen the citations actually saved with the preceding visible reply.
+ function citedPages(question, mode, previous) {
+   if(mode!=='auto'||!previous||previous.status!=='ok')return null;
+   const q=question.trim().replace(/[?.!]*\s*(?:please )?name the pages?[?.!]*$/i,'').replace(/[?.!]+$/,'');
+   const citation=/^(?:what|which) (?:pages?|sources?|citations?|references?) did you (?:cite|use|link)(?: (?:in|for) (?:that|your (?:last|previous) (?:answer|reply)))?$/i;
+   const links=/^(?:please )?(?:show|give|send)(?: me)? (?:the |those |your )?(?:links?|sources?|citations?) (?:from|for) (?:that (?:answer|reply)|your (?:last|previous) (?:answer|reply))$/i;
+   const support=/^(?:what|which) (?:([\p{L}\d-]+) )?(?:sources?|pages?) supports? (?:the |that |your )?[\p{L}\d '-]{1,60} in your (?:last|previous) (?:answer|reply)$/iu.exec(q);
+   if(!support&&!citation.test(q)&&!links.test(q))return null;
+   const pages=sources(previous.sources);
+   if(!pages.length)return {text:'There were no saved citations for the previous reply.',sources:[]};
+   let selected=pages;
+   const publisher=support?.[1]?.toLowerCase();
+   if(publisher){
+     selected=pages.filter(p=>(new URL(p.url).hostname+' '+p.title).toLowerCase().split(/[^\p{L}\d-]+/u).includes(publisher));
+     if(!selected.length)return {text:'The saved citations do not identify a page from '+support[1]+'. The previous reply cited '+pages.map(p=>p.title).join(', ')+'.',sources:pages};
+   }
+   const titles=selected.map(p=>p.title).join(', ');
+   const detail=support?' I’d need to check the cited material to verify that detail.':'';
+   return {text:'The previous reply cited '+titles+'.'+detail,sources:selected};
+ }
  function context(turns) {
    const messages=[]; let used=0;
    for (let i=turns.length-1;i>=0 && messages.length<12;i--) {
      const t=turns[i];
-     if(t.memoryRefs?.length || t.image || t.file || t.practice || t.retired || t.kind || t.phone || t.status!=='ok' || t.unavailable || !t.reply) continue;
+     if(t.recalledSources || t.memoryRefs?.length || t.image || t.file || t.practice || t.retired || t.kind || t.phone || t.status!=='ok' || t.unavailable || !t.reply) continue;
      const q=t.question.slice(0,2000), a=t.reply.slice(0,6000);
      if(used+q.length+a.length>9000) break;
      messages.unshift({role:'user',content:q},{role:'assistant',content:a});
@@ -125,6 +145,6 @@ const NotaModel = (() => {
    }
    return html.join('');
  }
- return {requestsResearch,id,newThread,esc,safeUrl,sources,context,request,tidy,checklist,cardText,sourceText,transcript,markdown,forSpeech};
+ return {requestsResearch,id,newThread,esc,safeUrl,sources,citedPages,context,request,tidy,checklist,cardText,sourceText,transcript,markdown,forSpeech};
 })();
 if(typeof module !== 'undefined')module.exports=NotaModel;
