@@ -239,7 +239,8 @@ function runTurn(t,prior,voice=null){
  const local=!t.practice&&localStudy(t.question,t);
  let payload=t.practice?Rehearsal.prompt(thread.rehearsal,t,prior):M.request(t,prior,thread.documents?.[t.file]);
  const drafting=!t.practice&&!t.image&&!intent&&payload.route==='write'&&!thread.documents?.[t.file]?.editTarget;
- const budget=drafting&&!local&&!t.file&&!t.attachment?AnswerQuality.timeBudget(t.question):null;
+ const intervalChat=payload.route==='chat'&&t.mode==='auto'&&!intent&&!t.practice&&!t.image&&!M.requestsResearch(t.question);
+ const budget=(drafting||intervalChat)&&!local&&!t.file&&!t.attachment?AnswerQuality.timeBudget(t.question,intervalChat):null;
  const list=drafting&&(t.makeFile||!t.file&&!t.attachment&&/^(?:(?:please|can you|could you) )*(?:make|create|draft|write|give me|prepare) /i.test(t.question))?AnswerQuality.checklistSpec(t.question):null;
  if(budget)payload=AnswerQuality.instructions(payload,AnswerQuality.activityInstructions(budget));
  else if(list)payload=AnswerQuality.instructions(payload,'Write distinct, useful Markdown bullets. Make each entry specific enough to use. For a travel checklist give practical preparations. Use only booking details supplied by the user.');

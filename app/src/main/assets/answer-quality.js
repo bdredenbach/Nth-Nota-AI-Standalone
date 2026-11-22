@@ -32,13 +32,13 @@ const AnswerQuality = (() => {
   return steps.join('\n')+'\n\nTotal: '+total+' minutes.';
  }
 
- // Other timed plans keep the model's activity choices. Parse interval rows and
+ // Structured interval plans keep the model's activity choices. Parse interval rows and
  // add them here so a model-written total can never mask a budget overrun.
- function timeBudget(q) {
+ function timeBudget(q,structuredOnly=false) {
   if(!/\b(?:plan|schedule|break|split|divide|organize|allocate|budget)\b/i.test(q) ||
      !/\b(?:blocks?|sessions?|breaks?|agenda|schedule|workshop|meeting|workout|study plan)\b/i.test(q))return null;
   // A separate allowance or two independently timed sessions have no single
-  // inclusive budget. Leave the original request intact for the writing service.
+  // inclusive budget. Leave the original request intact.
   if(/\b(?:plus|followed by|in addition to|excluding)\b[^.!?]{0,35}\bbreaks?\b/i.test(q))return null;
   const candidates=[...q.matchAll(/\b(\d+)[ -](?:minutes?|mins?)\b(?![ -]+(?:breaks?|blocks?|intervals?)\b)/gi)];
   if(candidates.length!==1)return null;
@@ -48,6 +48,9 @@ const AnswerQuality = (() => {
   const rest=q.match(new RegExp('\\b('+number+')[ -]minute breaks?\\b','i'));
   const restCount=q.match(new RegExp('\\b(?:include|including|with|plus) ('+number+') (?:'+number+'[ -]minute )?breaks?\\b','i'));
   const noBreaks=/\b(?:without|no|exclude|excluding) (?:any )?breaks?\b/i.test(q);
+  // The Worker validates named allocations. The app formats structured
+  // schedules that need interval rows or explicit breaks.
+  if(structuredOnly&&!blocks&&!/\b(?:breaks?|agenda|schedule|workshop|meeting|workout|study (?:plan|session))\b/i.test(q))return null;
   return {total:+m[1],blocks:blocks&&!/\b(?:as one of|counts? as|blocks? (?:total|in all))\b/i.test(q)?value(blocks[1]):0,
    breaks:noBreaks?'none':/\b(include|including|with|plus)\b[^.!?]{0,30}\bbreaks?\b/i.test(q)?'required':'optional',
    breakCount:restCount?value(restCount[1]):null,breakMinutes:rest?value(rest[1]):null};
@@ -133,6 +136,10 @@ const AnswerQuality = (() => {
  }
  const intervalFormat='Return only one line per interval, in the exact form WORK | whole minutes | activity or BREAK | whole minutes | activity. Every interval including breaks counts toward the requested total. Keep the requested block count and break lengths.';
  function instructions(payload,hint) {
+  if(payload.route==='chat'){
+   const question=payload.question+'\n\n'+hint+' Do not browse.';
+   return question.length<=2000?{...payload,question}:payload;
+  }
   if(payload.route!=='write')return payload;
   const prefix=hint+'\n\n';
   // Keep the original file, user request and memory intact at the transport limit.

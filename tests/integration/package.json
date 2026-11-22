@@ -1,0 +1,7 @@
+{
+  "name": "nota-planning-integration-test",
+  "private": true,
+  "dependencies": {
+    "linkedom": "0.18.12"
+  }
+}

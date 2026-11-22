@@ -1,6 +1,5 @@
 'use strict';
 const NotaModel = (() => {
- const quality=typeof module!=='undefined'?require('./answer-quality.js'):AnswerQuality;
  const id = prefix => prefix + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 11);
  const newThread = (temporary = false) => ({id:id('thread'),title:'New chat',temporary,updated:Date.now(),draft:'',attachment:'',mode:'auto',turns:[]});
  const esc = value => String(value == null ? '' : value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -25,10 +24,11 @@ const NotaModel = (() => {
    }
    return messages;
  }
+ const requestsResearch=q=>/https?:|\b(?:search|web|cite|sources?|verify|research|look up|latest|current|today['’]s|official|news|prices?|exchange rates?|guidelines|recalls?)\b/i.test(q);
  function usesWritingService(turn){
    if(turn.mode!=='auto')return false;
    const q=turn.question.trim().replace(/^(?:please |(?:can|could|would) you (?:please )?)/i,'');
-   if(/https?:|\b(?:search|web|cite|sources?|verify|research|look up|latest|current|today['’]s|official|news|prices?|exchange rates?|guidelines|recalls?)\b/i.test(q))return false;
+   if(requestsResearch(q))return false;
    // A recipe or unit conversion can be completed from the quantities the user supplied.
    const quantities=/\b\d+(?:[./]\d+)? *[a-z]*\b/i.test(q);
    const recipeScale=quantities&&/\b(?:cups?|tablespoons?|teaspoons?|grams?|ounces?|liters?)\b/i.test(q)&&
@@ -36,12 +36,12 @@ const NotaModel = (() => {
    const mealIdea=/^(?:i have|we have|using)\b.{1,180}?[.!?,]\s*(?:please )?(?:suggest|plan|make|give me)\b.{0,45}\b(?:dinner|lunch|breakfast|meal|recipe)\b/i.test(q);
    const unitConversion=quantities&&/^convert\b/i.test(q)&&/\b(?:fahrenheit|celsius|kilometers?|miles?|centimeters?|inches|kilograms?|pounds?)\b/i.test(q)&&
      /\b(?:to|into) (?:degrees )?(?:fahrenheit|celsius|kilometers?|miles?|centimeters?|inches|kilograms?|pounds?)[?.! ]*$/i.test(q);
-   const timeBudget=quality.timeBudget(q);
-   if(recipeScale||mealIdea||unitConversion||timeBudget)return true;
-   return /^(?:draft|rewrite|rephrase|translate)\b/i.test(q)||
+   if(recipeScale||mealIdea||unitConversion)return true;
+   return /^(?:draft|write|rewrite|rephrase|translate|proofread)\b/i.test(q)||
+     /^polish(?:\s*[:.—]|\s+(?:this|that|it|my|our|the|these|those|up)\b|$)/i.test(q)||
      /^use (?:that|this|the|my|our) (?:name|detail|phrase|idea) in (?:.{0,35} )?(?:invitation|message|story|sentence|poem)\b/i.test(q)||
      /^(?:think of|brainstorm|come up with) (?:.{0,45} )?(?:names|ideas|titles)\b/i.test(q)||
-     /^(?:make|create|write|give me) (?:.{0,45} )?(?:checklist|grocery list|poem|invitation)\b/i.test(q);
+     /^(?:make|create|give me) (?:.{0,45} )?(?:checklist|grocery list|poem|invitation)\b/i.test(q);
  }
  function request(turn, prior, document) {
    const fileRules='Follow the requested format. For a simple list of N items, give exactly N top-level items. Use brief Markdown bullets unless the user requested another layout. Leave unspecified bookings, routes, places, dates and times open. Return only the finished file text.';
@@ -125,6 +125,6 @@ const NotaModel = (() => {
    }
    return html.join('');
  }
- return {id,newThread,esc,safeUrl,sources,context,request,tidy,checklist,cardText,sourceText,transcript,markdown,forSpeech};
+ return {requestsResearch,id,newThread,esc,safeUrl,sources,context,request,tidy,checklist,cardText,sourceText,transcript,markdown,forSpeech};
 })();
 if(typeof module !== 'undefined')module.exports=NotaModel;
