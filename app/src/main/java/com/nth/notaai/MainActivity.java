@@ -124,8 +124,8 @@ public final class MainActivity extends Activity {
                     try { return usageGuide.open(getAssets(), range); }
                     catch (IOException ignored) {}
                 }
-                if (local && "/usage-guide.jpg".equals(path)) {
-                    try { return new WebResourceResponse("image/jpeg", null, getAssets().open("usage-guide.jpg")); }
+                if (local && ("/usage-guide.jpg".equals(path) || "/usage-guide.gif".equals(path))) {
+                    try { return new WebResourceResponse(path.endsWith(".gif") ? "image/gif" : "image/jpeg", null, getAssets().open(path.substring(1))); }
                     catch (IOException ignored) {}
                 }
                 if (local && path != null && path.startsWith("/chat-image/")) {

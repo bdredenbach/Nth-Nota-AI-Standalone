@@ -7,8 +7,8 @@ android {
         applicationId 'com.nth.notaai'
         minSdk 26
         targetSdk 36
-        versionCode 17
-        versionName '0.12.5'
+        versionCode 18
+        versionName '0.12.6'
     }
     androidResources { noCompress += ['pack', 'webm'] }
     packaging { jniLibs { useLegacyPackaging = true } }

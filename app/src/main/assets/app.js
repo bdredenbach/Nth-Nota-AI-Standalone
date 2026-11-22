@@ -53,7 +53,7 @@ function modal(title,body,kind){
  $('overlay').hidden=false;$('app').setAttribute('aria-hidden','true');
  $('dialog').querySelector(kind==='attachments'?'[data-action=camera]':'button').focus();
 }
-function closeSheet(){document.querySelector('#usage-guide video')?.pause();$('organizer-menu').setAttribute('aria-expanded','false');if(sheet==='revision')Revision.close();stopPreview();sheet='';$('overlay').hidden=true;$('app').removeAttribute('aria-hidden');if(lastFocus && document.contains(lastFocus))lastFocus.focus();lastFocus=null;}
+function closeSheet(){const guide=$('usage-guide');if(guide){guide.open=false;guide.querySelector('video')?.pause();guide.querySelector('img')?.removeAttribute('src');}$('organizer-menu').setAttribute('aria-expanded','false');if(sheet==='revision')Revision.close();stopPreview();sheet='';$('overlay').hidden=true;$('app').removeAttribute('aria-hidden');if(lastFocus && document.contains(lastFocus))lastFocus.focus();lastFocus=null;}
 function confirmAction(title,desc,action,label){modal(title,'<p class="desc">'+M.esc(desc)+'</p>'+button(action,label,null,'','primary'));}
 let previewToken='';
 function voiceRate(){return [75,80,85,90,95,100,105,110].includes(prefs.voiceRate)?prefs.voiceRate:90;}
@@ -89,7 +89,8 @@ function phoneSetup(step=0){
    choice('usage',state.usage?'Usage Access on · manage':'Open Usage Access',state.usage?'check':'history')+
    '<p class="desc">If Android says access is restricted, open App info and check its menu for “Allow restricted settings.” Then return to Usage Access.</p>'+choice('info','Open app info')+
    '<details id="usage-guide" class="usage-guide"><summary>Watch the Usage Access walkthrough</summary>'+
-   '<video controls playsinline preload="none" poster="usage-guide.jpg" aria-label="Usage Access setup on Android" src="usage-guide.webm"></video></details>';
+   (state.sdk>=37?'<video controls playsinline preload="none" poster="usage-guide.jpg" aria-label="Usage Access setup on Android" src="usage-guide.webm"></video>':
+    '<img class="guide-animation" alt="Open App info, allow restricted settings, then enable Usage Access."><button type="button" class="guide-replay pill">Replay walkthrough</button>')+'</details>';
  }else{
   content='<h3>Microphone</h3><p class="desc">Give Nota microphone access to use Live voice. Android handles speech recognition.</p>'+
    choice(state.mic?'info':'mic',state.mic?'Microphone allowed · manage':'Allow microphone',state.mic?'check':'mic')+
@@ -99,7 +100,16 @@ function phoneSetup(step=0){
  modal('Phone setup',content+'<div class="phone-nav">'+button(phoneStep?'phone-prev':'phone-finish',phoneStep?'Back':'Skip setup',null,'','pill')+
  button(phoneStep===2?'phone-finish':'phone-next',phoneStep===2?'Finish':'Next',null,'','primary')+'</div>','phone');
  const guide=$('usage-guide');
- if(guide)guide.addEventListener('toggle',()=>{if(!guide.open)guide.querySelector('video').pause();});
+ if(guide){
+  const animation=guide.querySelector('.guide-animation');
+  let playNumber=0;
+  const playAnimation=()=>{animation.src='usage-guide.gif?play='+Date.now()+'-'+(++playNumber);};
+  guide.querySelector('.guide-replay')?.addEventListener('click',playAnimation);
+  guide.addEventListener('toggle',()=>{
+   if(guide.open){if(animation)playAnimation();}
+   else{animation?.removeAttribute('src');guide.querySelector('video')?.pause();}
+  });
+ }
 }
 function phoneActions(t,i){
  const choices=(t.actions||[]).map((a,n)=>button('phone-action',a.label,a.type==='setup'?'sliders':'sendout','data-i="'+i+'" data-n="'+n+'"','choice framed')).join('');
@@ -116,7 +126,7 @@ function showSettings(){
  '<label class="pace-label" for="voice-pace">Speaking pace <output id="pace-value" for="voice-pace">'+voiceRate()+'%</output></label>'+
  '<input type="range" id="voice-pace" aria-label="Speaking pace" min="75" max="110" step="5" value="'+voiceRate()+'" aria-valuetext="'+voiceRate()+' percent">'+
  '<button class="choice framed" data-action="preview-voice">'+icon('sound')+'<span id="voice-preview-label" aria-live="polite">Preview voice</span></button>'+
- '<h3>On this device</h3><p class="desc">Chats, drafts and Desk cards are stored here. Temporary chats stay in memory. Android handles microphone input through its speech service.</p><p class="version">Nth Nota AI · 0.12.5</p>','settings');
+ '<h3>On this device</h3><p class="desc">Chats, drafts and Desk cards are stored here. Temporary chats stay in memory. Android handles microphone input through its speech service.</p><p class="version">Nth Nota AI · 0.12.6</p>','settings');
 }
 function consentDialog(){
  modal('Allow cloud questions?','<p class="desc">Sending a message shares it and relevant saved memories and recent replies with Nth Nota’s Cloudflare and Groq service. Web questions can share search terms or requested links with research providers. Sending an attached file shares its text and file names. Photos have their own sharing choice.</p><p class="desc">You can turn this off in Settings. Your draft stays here until you press Send.</p>'+button('agree','Allow cloud questions','check','','primary')+button('close','Keep off',null,'','choice centered'),'consent');

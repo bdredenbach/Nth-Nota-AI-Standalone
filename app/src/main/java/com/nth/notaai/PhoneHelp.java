@@ -52,7 +52,7 @@ final class PhoneHelp {
         return locations.isProviderEnabled(LocationManager.NETWORK_PROVIDER)||locations.isProviderEnabled(LocationManager.GPS_PROVIDER);
     }
     String status(){
-        try{return new JSONObject().put("weather",prefs.getBoolean("weather",false)).put("follow",enabledLocation())
+        try{return new JSONObject().put("sdk",Build.VERSION.SDK_INT).put("weather",prefs.getBoolean("weather",false)).put("follow",enabledLocation())
             .put("city",prefs.getString("city","")).put("locationService",locationServices()).put("usage",hasUsage())
             .put("mic",granted(Manifest.permission.RECORD_AUDIO)).toString();}
         catch(Exception e){return "{}";}
