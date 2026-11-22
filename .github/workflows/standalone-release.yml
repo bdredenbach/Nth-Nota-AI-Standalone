@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ['.github/workflows/standalone-release.yml']
+    paths: ['.github/workflows/standalone-release.yml', 'app/build.gradle']
 permissions:
   contents: read
 jobs:
@@ -20,7 +20,7 @@ jobs:
       - name: Test and build the standalone application
         run: |
           node --test tests/*.test.cjs
-          ./gradlew --no-daemon :app:assembleRelease
+          ./gradlew --no-daemon :app:testDebugUnitTest --tests com.nth.notaai.GatewayQuotaTest :app:assembleRelease
       - name: Check package and record build identity
         shell: bash
         run: |

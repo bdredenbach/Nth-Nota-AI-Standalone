@@ -9,6 +9,11 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.time.format.FormatStyle;
+import java.util.Locale;
 import java.util.TimeZone;
 import javax.net.ssl.HttpsURLConnection;
 
@@ -66,7 +71,7 @@ final class Gateway {
             http.setRequestProperty("Content-Type", "application/json");
             http.setRequestProperty("Accept", "application/json");
             http.setRequestProperty("Origin", "https://appassets.androidplatform.net");
-            http.setRequestProperty("User-Agent", "NthNotaAI/0.12.3 (Android)");
+            http.setRequestProperty("User-Agent", "NthNotaAI/0.12.4 (Android)");
             http.setFixedLengthStreamingMode(bytes.length);
             try (OutputStream out = http.getOutputStream()) {
                 if (canceled) throw new IOException("Stopped.");
@@ -74,7 +79,7 @@ final class Gateway {
             }
             int status = http.getResponseCode();
             if (status < 200 || status >= 300) {
-                if (status == 429) throw new IOException("The free service has reached a usage limit. Try again later.");
+                if (status == 429) throw new IOException(quotaMessage(http, System.currentTimeMillis()));
                 if (status == 503 || status == 502 || status == 504) {
                     throw new IOException("The free AI service is temporarily unavailable. Your question is still here. Tap Retry to try again.");
                 }
@@ -90,6 +95,32 @@ final class Gateway {
             http.disconnect();
             connection = null;
         }
+    }
+
+    static String quotaMessage(HttpsURLConnection http, long now) {
+        String prefix = "The free service has reached a usage limit.";
+        long retryAt = 0;
+        try (InputStream in = http.getErrorStream()) {
+            if (in != null) retryAt = new JSONObject(readUtf8(in, 8192)).optLong("retryAt", 0);
+        } catch (IOException | JSONException ignored) {
+            // Proxies may return an empty body or an HTML error page.
+        }
+        if (retryAt <= now) {
+            String header = http.getHeaderField("Retry-After");
+            if (header != null) {
+                try {
+                    long seconds = Long.parseLong(header.trim());
+                    if (seconds >= 0) retryAt = Math.addExact(now, Math.multiplyExact(seconds, 1000L));
+                } catch (NumberFormatException | ArithmeticException ignored) {
+                    retryAt = http.getHeaderFieldDate("Retry-After", retryAt);
+                }
+            }
+        }
+        if (retryAt <= 0) return prefix + " Try again later.";
+        if (retryAt <= now) return prefix + " You can retry now.";
+        DateTimeFormatter localTime = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM)
+                .withLocale(Locale.getDefault()).withZone(ZoneId.systemDefault());
+        return prefix + " Try again at " + localTime.format(Instant.ofEpochMilli(retryAt)) + " (local time).";
     }
 
     static String readUtf8(InputStream in, int limit) throws IOException {
