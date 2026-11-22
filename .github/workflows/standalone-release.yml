@@ -26,6 +26,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
+          git rev-parse HEAD > dist/source-commit.txt
           cp app/build/outputs/apk/release/app-release-unsigned.apk dist/
           sdk_dir="$(dirname "$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)")"
           "$sdk_dir/aapt" dump badging dist/app-release-unsigned.apk > dist/package.txt

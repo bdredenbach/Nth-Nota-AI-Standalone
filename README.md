@@ -4,7 +4,7 @@ A standalone Android assistant with two work surfaces. Chat holds a conversation
 
 Basic study-block plans are calculated on the phone. For other supported minute-based schedules Nota checks the intervals against the requested budget. Generated Markdown checklists are checked for count, duplicates and placeholders before they appear in Files. A failed check can trigger one rewrite.
 
-The regular 0.12.2 release uses the R1 signing key. Application ID `com.nth.notaai`. Minimum Android 8.0, target Android 16 / API 36. It can be installed alongside the Nth Nota notes app and the Nth Desktop launchers.
+The regular 0.12.3 release uses the R1 signing key. Application ID `com.nth.notaai`. Minimum Android 8.0, target Android 16 / API 36. It can be installed alongside the Nth Nota notes app and the Nth Desktop launchers.
 
 ## Organizing chats and Desk cards
 
