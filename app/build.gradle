@@ -7,10 +7,10 @@ android {
         applicationId 'com.nth.notaai'
         minSdk 26
         targetSdk 36
-        versionCode 16
-        versionName '0.12.4'
+        versionCode 17
+        versionName '0.12.5'
     }
-    androidResources { noCompress += 'pack' }
+    androidResources { noCompress += ['pack', 'webm'] }
     packaging { jniLibs { useLegacyPackaging = true } }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17

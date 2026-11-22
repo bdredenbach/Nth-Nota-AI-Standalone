@@ -197,3 +197,7 @@ pre,code{font-family:monospace;background:var(--muted);border-radius:4px;font-si
 .memory-row span,.memory-row small{display:block}
 .memory-row small{margin-top:4px;color:var(--sub)}
 .memory-text{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.55}
+
+.usage-guide{margin:12px 0;color:var(--ink)}
+.usage-guide summary{padding:12px 0;cursor:pointer;font-weight:600}
+.usage-guide video{display:block;width:100%;max-height:65vh;margin:4px auto 12px;border-radius:12px;background:#171717;object-fit:contain}

@@ -20,7 +20,7 @@ jobs:
       - name: Test and build the standalone application
         run: |
           node --test tests/*.test.cjs
-          ./gradlew --no-daemon :app:testDebugUnitTest --tests com.nth.notaai.GatewayQuotaTest :app:assembleRelease
+          ./gradlew --no-daemon :app:testDebugUnitTest --tests com.nth.notaai.GatewayQuotaTest --tests com.nth.notaai.UsageGuideTest :app:assembleRelease
       - name: Check package and record build identity
         shell: bash
         run: |

@@ -45,6 +45,7 @@ public final class MainActivity extends Activity {
     private java.util.concurrent.Future<?> phoneTask;
     private boolean foreground;
     private LiveVoice live;
+    private final UsageGuide usageGuide = new UsageGuide();
     private String pendingVoice = "";
     private boolean ready, dark;
 
@@ -115,6 +116,18 @@ public final class MainActivity extends Activity {
                 Uri uri = req.getUrl();
                 String path = uri.getPath();
                 boolean local = "https".equals(uri.getScheme()) && "appassets.androidplatform.net".equals(uri.getAuthority());
+                if (local && "/usage-guide.webm".equals(path)) {
+                    String range = null;
+                    for (Map.Entry<String, String> header : req.getRequestHeaders().entrySet()) {
+                        if ("Range".equalsIgnoreCase(header.getKey())) range = header.getValue();
+                    }
+                    try { return usageGuide.open(getAssets(), range); }
+                    catch (IOException ignored) {}
+                }
+                if (local && "/usage-guide.jpg".equals(path)) {
+                    try { return new WebResourceResponse("image/jpeg", null, getAssets().open("usage-guide.jpg")); }
+                    catch (IOException ignored) {}
+                }
                 if (local && path != null && path.startsWith("/chat-image/")) {
                     try { return images.response(path.substring("/chat-image/".length())); }
                     catch (IOException ignored) {}
